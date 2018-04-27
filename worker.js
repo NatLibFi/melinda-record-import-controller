@@ -28,35 +28,27 @@
 
 /* eslint-disable no-unused-vars */
 
-'use strict';
+var Agenda = require('agenda');
+var enums = require('../melinda-record-import-commons/utils/enums');
 
 var config = require('./config'),
-    logs = config.logs,
-    enums = require('../melinda-record-import-commons/utils/enums'),
-    HttpCodes = require('../melinda-record-import-commons/utils/HttpCodes'),
-    express = require('express'),
-    bodyParser = require('body-parser'),
-    cors = require('cors');
+    agenda = new Agenda(config.agendaMongo);
 
+//var jobTypes = process.env.JOB_TYPES ? process.env.JOB_TYPES.split(',') : [];
+var jobTypes = ['dispatch'];
 
-var app = express();
-app.config = config;
-app.enums = enums;
-app.use(cors());
+agenda.on('ready', () => {
+    jobTypes.forEach(function (type) {
+        require('./jobs/' + type)(agenda);
+    })
+    agenda.every('3 seconds', enums.jobs.pollBlobs);
 
-//var isProduction = process.env.NODE_ENV === enums.environment.production;
-var isProduction = app.config.environment === enums.environment.production;
-
-
-// Normal express config defaults
-app.use(require('morgan')('dev'));
-app.use(bodyParser.urlencoded({ extended: false }));
-app.use(bodyParser.json());
-
-require('./worker');
-
-// finally, let's start our server...
-var server = app.listen(app.config.port, function () {
-    console.log('Listening on port ' + server.address().port + ', is in production: ' + isProduction);
-    //console.log('Env:', process.env);
+    agenda.start()
 });
+
+
+if (jobTypes.length) {
+    agenda.start();
+}
+
+module.exports = agenda;

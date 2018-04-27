@@ -29,3 +29,19 @@
 /* eslint-disable no-unused-vars */
 
 'use strict';
+
+var enums = require('../../melinda-record-import-commons/utils/enums');
+
+
+module.exports = function (agenda) {
+    agenda.define(enums.jobs.pollBlobs, function (job, done) {
+        console.log("polling");
+        done();
+    });
+
+    agenda.define('reset password', function (job, done) {
+        console.log("Job: res pass");
+        done();
+        // etc etc
+    })
+}
