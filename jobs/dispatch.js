@@ -1,4 +1,5 @@
 /**
+
 *
 * @licstart  The following is the entire license notice for the JavaScript code in this file. 
 *
@@ -29,19 +30,27 @@
 /* eslint-disable no-unused-vars */
 
 'use strict';
+var fetch = require('node-fetch');
 
-var enums = require('../../melinda-record-import-commons/utils/enums');
+var enums = require('../../melinda-record-import-commons/utils/enums'),
+    config = require('../../melinda-record-import-commons/config'),
+    configCrowd = require('../../melinda-record-import-commons/configCrowd');
 
+var encodedAuth = configCrowd.encodedAuth;
+
+var url = 'http://' + config.hostname + ':' + config.portAPI + '/blobs';
 
 module.exports = function (agenda) {
-    agenda.define(enums.jobs.pollBlobs, function (job, done) {
-        console.log("polling");
-        done();
+    agenda.define(enums.jobs.pollBlobs, function (job, done) {        
+        fetch(url, { headers: { 'Authorization': encodedAuth } })
+        .then(res => res.json())
+        .then(json => console.log(json))
+        .then(done());
+
     });
 
     agenda.define('reset password', function (job, done) {
         console.log("Job: res pass");
         done();
-        // etc etc
     })
 }

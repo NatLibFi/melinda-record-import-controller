@@ -30,13 +30,15 @@
 
 'use strict';
 
-var config = require('./config'),
+var config = require('../melinda-record-import-commons/config'),
     logs = config.logs,
     enums = require('../melinda-record-import-commons/utils/enums'),
     HttpCodes = require('../melinda-record-import-commons/utils/HttpCodes'),
     express = require('express'),
     bodyParser = require('body-parser'),
-    cors = require('cors');
+    cors = require('cors'),
+    mongoose = require('mongoose');
+
 
 
 var app = express();
@@ -55,8 +57,17 @@ app.use(bodyParser.json());
 
 require('./worker');
 
+if (isProduction) {
+    mongoose.connect(app.config.mongodb);
+} else {
+    mongoose.connect('mongodb://generalAdmin:ToDoChangeAdmin@127.0.0.1:27017/melinda-record-import-api');
+    mongoose.set('debug', config.mongoDebug);
+}
+
+console.log("Mongoose: ", mongoose.collections);
+
 // finally, let's start our server...
-var server = app.listen(app.config.port, function () {
+var server = app.listen(app.config.portController, function () {
     console.log('Listening on port ' + server.address().port + ', is in production: ' + isProduction);
     //console.log('Env:', process.env);
 });
