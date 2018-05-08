@@ -38,14 +38,14 @@ var config = require('../melinda-record-import-commons/config'),
 var jobTypes = ['dispatch'];
 
 agenda.on('ready', () => {
-    agenda.cancel({ name: enums.jobs.pollBlobs }, function (err, numRemoved) {
+    agenda.cancel({ name: enums.jobs.pollBlobsPending }, function (err, numRemoved) {
         console.log("Removed jobs: ", numRemoved, " errors: ", err);
     });
 
     jobTypes.forEach(function (type) {
         require('./jobs/' + type)(agenda);
     })
-    agenda.every('3 seconds', enums.jobs.pollBlobs);
+    agenda.every('3 seconds', enums.jobs.pollBlobsPending);
 
     agenda.start();
 });
