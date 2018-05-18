@@ -50,9 +50,18 @@ var container;
 //////////////////////////////////////////////////////////
 // Start: Defining jobs to be activated from worker
 module.exports = function (agenda) {
-    if (configGeneral.environment === enums.environment.development) {
+    var removeContainersPromise = removeDockers();
+    removeContainersPromise.then(function () {
+        console.log("Promise remove resolved");
         dispatchDocker();
-    }
+    }).catch(function (err) {
+        console.log("Promise remove rejected");
+        return next(err);
+    });
+
+    //if (configGeneral.environment === enums.environment.development) {
+    //    dispatchDocker();
+    //}
 
     agenda.define(enums.jobs.pollBlobsPending, function (job, done) {
         fetch(urlBlobs + '?state=' + enums.blobStates.pending, { headers: { 'Authorization': configCrowd.encodedAuth } })
@@ -124,6 +133,8 @@ function removeDockers() {
                     });
                 });
             })
+
+            Promise.all(requests).then(() => resolveMain());
         });
     });
 }
@@ -134,32 +145,17 @@ function dispatchDocker() {
 
     var transformer = _.cloneDeep(configDocker.transformer);
     
-    docker.listContainers(function (err, containers) {
-        //Shut down all previous containers
-        let requests = containers.map((containerInfo) => {
-            return new Promise((resolve) => {
-                docker.getContainer(containerInfo.Id).stop(function () {
-                    resolve();
-                });
-            });
-        })
-
-        //Start new container
-        Promise.all(requests).then(() => {
-            docker.createContainer(
-                transformer
-            ).then(function (cont) {
-                return cont.start();
-            }).then(function (cont) {
-                container = cont;
-                console.log("---------------- Starting container end -----------------");
-                return cont;
-            }).catch(function (err) {
-                console.log(err);
-            });
-        });
+    docker.createContainer(
+        transformer
+    ).then(function (cont) {
+        return cont.start();
+    }).then(function (cont) {
+        container = cont;
+        console.log("---------------- Starting container end -----------------");
+        return cont;
+    }).catch(function (err) {
+        console.log(err);
     });
-    
 }
 // End: Subfunctions for Pending blobs
 //////////////////////////////////////////////////////////
