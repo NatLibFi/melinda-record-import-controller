@@ -28,25 +28,4 @@
 
 /* eslint-disable no-unused-vars */
 
-var Agenda = require('agenda');
-var enums = require('../melinda-record-import-commons/utils/enums');
-
-var config = require('../melinda-record-import-commons/config'),
-    agenda = new Agenda(config.agendaMongo);
-
-//var jobTypes = process.env.JOB_TYPES ? process.env.JOB_TYPES.split(',') : [];
-var jobTypes = ['dispatch'];
-
-agenda.on('ready', () => {
-    agenda.cancel({ name: enums.jobs.pollBlobsPending }, function (err, numRemoved) {
-        console.log("Removed jobs: ", numRemoved, " errors: ", err);
-        jobTypes.forEach(function (type) {
-            require('./jobs/' + type)(agenda);
-        })
-        agenda.every('3 seconds', enums.jobs.pollBlobsPending);
-
-        agenda.start();
-    });
-});
-
-module.exports = agenda;
+'use strict';

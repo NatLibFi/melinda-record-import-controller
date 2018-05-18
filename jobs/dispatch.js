@@ -33,17 +33,27 @@
 var fetch = require('node-fetch'),
     _ = require('lodash'),
     chai = require('chai'),
-    expect = chai.expect;
-
+    expect = chai.expect,
+    Docker = require('dockerode'),
+    stream = require('stream');
+    
+   
 var enums = require('../../melinda-record-import-commons/utils/enums'),
-    config = require('../../melinda-record-import-commons/config'),
+    configDocker = require('./configDocker'),
+    configGeneral = require('../../melinda-record-import-commons/config'),
     configCrowd = require('../../melinda-record-import-commons/configCrowd');
 
-var urlBlobs = config.urlAPI + '/blobs';
+var urlBlobs = configGeneral.urlAPI + '/blobs';
+var docker = new Docker();
+var container;
 
 //////////////////////////////////////////////////////////
 // Start: Defining jobs to be activated from worker
 module.exports = function (agenda) {
+    if (configGeneral.environment === enums.environment.development) {
+        dispatchDocker();
+    }
+
     agenda.define(enums.jobs.pollBlobsPending, function (job, done) {
         fetch(urlBlobs + '?state=' + enums.blobStates.pending, { headers: { 'Authorization': configCrowd.encodedAuth } })
         .then(res => {
@@ -88,18 +98,68 @@ module.exports = function (agenda) {
 // b. Dispatch a transformer container according to the profile
 // c. Call POST /profiles/{id} with op=transformationStarted
 function processBlobsPending(blobs) {
-    console.log("Processed blobs: ", blobs);
+    //console.log("Blobs to Process: ", blobs);
+    containerLogs(container);
 
     _.forEach(blobs, function (urlBlob) {
         var getProfilePromise = getBlobProfile(urlBlob);
         getProfilePromise.then(function (profile) {
-            console.log("JSON: ", profile); //This is profile name
+            //console.log("JSON: ", profile); //This is profile name
         }).catch(function (err) {
             console.error(err);
         });
     });
 
     return;
+}
+
+function removeDockers() {
+    return new Promise(function (resolveMain, reject) {
+        docker.listContainers(function (err, containers) {
+            //Shut down all previous containers
+            let requests = containers.map((containerInfo) => {
+                return new Promise((resolve) => {
+                    docker.getContainer(containerInfo.Id).stop(function () {
+                        resolve();
+                    });
+                });
+            })
+        });
+    });
+}
+
+function dispatchDocker() {
+    console.log("---------------- Starting container -----------------");
+    console.log("Host: ", docker.modem.host);
+
+    var transformer = _.cloneDeep(configDocker.transformer);
+    
+    docker.listContainers(function (err, containers) {
+        //Shut down all previous containers
+        let requests = containers.map((containerInfo) => {
+            return new Promise((resolve) => {
+                docker.getContainer(containerInfo.Id).stop(function () {
+                    resolve();
+                });
+            });
+        })
+
+        //Start new container
+        Promise.all(requests).then(() => {
+            docker.createContainer(
+                transformer
+            ).then(function (cont) {
+                return cont.start();
+            }).then(function (cont) {
+                container = cont;
+                console.log("---------------- Starting container end -----------------");
+                return cont;
+            }).catch(function (err) {
+                console.log(err);
+            });
+        });
+    });
+    
 }
 // End: Subfunctions for Pending blobs
 //////////////////////////////////////////////////////////
@@ -167,6 +227,34 @@ function getBlobProfile(urlBlob) {
         })
         .catch(err => reject(err));
     })
+}
+
+function containerLogs(container) {
+    if (container) {
+        // create a single stream for stdin and stdout
+        var logStream = new stream.PassThrough();
+        logStream.on('data', function (chunk) {
+            console.log(chunk.toString('utf8'));
+        });
+
+        container.logs({
+            follow: true,
+            stdout: true,
+            stderr: true
+        }, function (err, stream) {
+            if (err) {
+                return logger.error(err.message);
+            }
+            container.modem.demuxStream(stream, logStream, logStream);
+            stream.on('end', function () {
+                logStream.end('!Stream end');
+            });
+
+            setTimeout(function () {
+                stream.destroy();
+            }, 2000);
+        });
+    }
 }
 // End: Supporting functions
 //////////////////////////////////////////////////////////

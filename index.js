@@ -69,5 +69,7 @@ console.log("Mongoose: ", mongoose.collections);
 // finally, let's start our server...
 var server = app.listen(app.config.portController, function () {
     console.log('Listening on port ' + server.address().port + ', is in production: ' + isProduction);
+
+    console.log("Add: ", server.address());
     //console.log('Env:', process.env);
 });
