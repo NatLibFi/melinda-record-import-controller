@@ -105,15 +105,15 @@ module.exports = function (agenda) {
 // b. Dispatch a transformer container according to the profile
 // c. Call POST /profiles/{id} with op=transformationStarted
 function processBlobsPending(blobs) {
-    console.log('Blobs to Process: ', blobs);
+    console.log('Pending blobs to Process: ', blobs);
 
     //Cycle trough each found blob
     _.forEach(blobs, function (urlBlob) {
         //a: Get profile to be used for containers
         var getProfilePromise = getBlobProfile(urlBlob);
         getProfilePromise.then(function (profile) {
-            console.log('---------------- Starting container -----------------');
-            console.log('Blob: ', urlBlob, ' with profile: ', profile); //This is profile name
+            console.log('---------------- Starting TRANSFORMATION container -----------------');
+            //console.log('Blob: ', urlBlob, ' with profile: ', profile); //This is profile name
 
             //b: Dispatch transformer container
             var dispatchTransformerPromise = dispatchTransformer(profile);
@@ -165,6 +165,8 @@ function dispatchTransformer(profile) {
             'API_PASSWORD=' + configCrowd.password
         ];
 
+        console.log('Launching Transformer: ', transformer);
+
         docker.createContainer(
             transformer
         ).then(function (cont) {
@@ -187,24 +189,27 @@ function dispatchTransformer(profile) {
 // b. Dispatch importer containers according to the profile. The maximum number of containers to dispatch is specified by environment variable IMPORTER_CONCURRENCY
 // c. Call POST /blobs/{id} with op=TRANSFORMATION_IN_PROGRESS 
 function processBlobsTransformed(blobs) {
-    console.log('Blobs to Process: ', blobs);
+    console.log('Transformed blobs to Process: ', blobs);
+    var searchOptsImporters = {
+        'filters': '{"label": ["fi.nationallibrary.melinda.record-import.container-type=import-task"]}'
+    };
 
-    docker.listContainers(function (err, totContainers) {
-        if (totContainers.length < configCtr.IMPORTER_CONCURRENCY) {
+    docker.listContainers(searchOptsImporters, function (err, impContainers) {
+        console.log('Running import containers: ', impContainers.length, ' maximum: ', configCtr.IMPORTER_CONCURRENCY);
+        if (impContainers.length < configCtr.IMPORTER_CONCURRENCY) {
             //Cycle trough each found blob
             _.forEach(blobs, function (urlBlob) {
-                var searchOpts = {
+                var searchOptsSingle = {
                     'filters': '{"label": ["fi.nationallibrary.melinda.record-import.container-type=import-task", "blobID=' + urlBlob.slice(urlBlob.lastIndexOf("/blobs/") + 7) + '"]}' //slice should be ID, but...
                 };
 
                 //a: If the are no running importer containers, get profile to be used for containers
-                docker.listContainers(searchOpts, function (err, containers) {
-                    console.log("Cont: ", containers)
+                docker.listContainers(searchOptsSingle, function (err, containers) {
                     if (containers.length === 0) {
                         var getProfilePromise = getBlobProfile(urlBlob);
                         getProfilePromise.then(function (profile) {
-                            console.log('---------------- Starting container -----------------');
-                            console.log('Blob: ', urlBlob, ' with profile: ', profile); //This is profile name
+                            console.log('---------------- Starting IMPORT container -----------------');
+                            //console.log('Blob: ', urlBlob, ' with profile: ', profile); //This is profile name
 
                             //b: Dispatch importer container
                             var dispatchImporterPromise = dispatchImporter(profile);
@@ -235,11 +240,13 @@ function processBlobsTransformed(blobs) {
                         }).catch(function (err) {
                             console.error(err);
                         });
+                    } else {
+                        console.error('There is already container running for blob: ', urlBlob);
                     }
                 });
             });
         } else {
-            console.error("Maximum number of jobs set in IMPORTER_CONCURRENCY (", configCtr.IMPORTER_CONCURRENCY, ") exceeded, running containers: ", totContainers);
+            console.error('Maximum number of jobs set in IMPORTER_CONCURRENCY (', configCtr.IMPORTER_CONCURRENCY, ') exceeded, running containers: ', impContainers);
         }
     });
 }
@@ -260,6 +267,8 @@ function dispatchImporter(profile) {
             'API_USERNAME=' + configCrowd.username,
             'API_PASSWORD=' + configCrowd.password
         ];
+
+        console.log('Launch Importer: ', importer);
 
         docker.createContainer(
             importer
@@ -282,7 +291,7 @@ function dispatchImporter(profile) {
 // a. Terminate any importer containers for the blob
 // b. Flush the blobs records from the queue
 function processBlobsAborted(blobs) {
-    console.log('Aborted blobs: ', blobs);
+    console.log('Aborted blobs to process: ', blobs);
 
     _.forEach(blobs, function (urlBlob) {
         var searchOpts = {
@@ -293,10 +302,10 @@ function processBlobsAborted(blobs) {
         docker.listContainers(searchOpts, function (err, container) {
             if (container.length === 1) {
                 docker.getContainer(container[0].Id).stop(function () {
-                    console.log("Container stopped");
+                    console.log('Container stopped');
                 });
             } else {
-                console.log("Blob set as aborted, but found ", container.length, " matching containers, should be 1.")
+                console.log('Blob (', urlBlob, ') set as aborted; but found ', container.length, ' matching containers.')
             }
         });
 

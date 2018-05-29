@@ -31,10 +31,11 @@
 'use strict';
 var Agenda = require('agenda');
 
-var configCtr = require('./config'),
+var configGeneral = require('../melinda-record-import-commons/config'),
+    configCtr = require('./config'),
     enums = require('../melinda-record-import-commons/utils/enums');
 
-var agenda = new Agenda(config.agendaMongo);
+var agenda = new Agenda(configGeneral.agendaMongo);
 
 //var jobTypes = process.env.JOB_TYPES ? process.env.JOB_TYPES.split(',') : [];
 var jobTypes = ['dispatch']; //Get jobs from dispatch file from jobs folder
@@ -45,11 +46,11 @@ agenda.on('ready', () => {
         jobTypes.forEach(function (type) {
             require('./jobs/' + type)(agenda);
         })
-        agenda.every(configCtr.workerFreaquency.pending, enums.jobs.pollBlobsPending);
+        agenda.every(configCtr.workerFrequency.pending, enums.jobs.pollBlobsPending);
 
-        agenda.every(configCtr.workerFreaquency.transformed, enums.jobs.pollBlobsTransformed);
+        agenda.every(configCtr.workerFrequency.transformed, enums.jobs.pollBlobsTransformed);
 
-        agenda.every(configCtr.workerFreaquency.aborted, enums.jobs.pollBlobsAborted);
+        agenda.every(configCtr.workerFrequency.aborted, enums.jobs.pollBlobsAborted);
 
         agenda.start();
     });

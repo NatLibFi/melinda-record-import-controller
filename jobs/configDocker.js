@@ -67,6 +67,7 @@ exports.transformer = {
 
 exports.importer = {
     Image: '{profile.import.image}',
+    AttachStdout: true, //Used to read logs
     Labels: {
         'fi.nationallibrary.melinda.record-import.container-type': 'import-task',
         'blobID': null
