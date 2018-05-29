@@ -35,41 +35,39 @@ var fetch = require('node-fetch'),
     chai = require('chai'),
     expect = chai.expect,
     Docker = require('dockerode'),
-    stream = require('stream');
-    
+    stream = require('stream'); 
    
 var enums = require('../../melinda-record-import-commons/utils/enums'),
+    httpCodes = require('../../melinda-record-import-commons/utils/HttpCodes'),
     configDocker = require('./configDocker'),
+    configCtr = require('../config'),
     configGeneral = require('../../melinda-record-import-commons/config'),
     configCrowd = require('../../melinda-record-import-commons/configCrowd');
 
 var urlBlobs = configGeneral.urlAPI + '/blobs';
+var urlProfile = configGeneral.urlAPI + '/profiles/';
 var docker = new Docker();
-var container;
 
 //////////////////////////////////////////////////////////
 // Start: Defining jobs to be activated from worker
 module.exports = function (agenda) {
-    var removeContainersPromise = removeDockers();
-    removeContainersPromise.then(function () {
-        console.log("Promise remove resolved");
-        dispatchDocker();
-    }).catch(function (err) {
-        console.log("Promise remove rejected");
-        return next(err);
-    });
-
     //if (configGeneral.environment === enums.environment.development) {
-    //    dispatchDocker();
+    //    var removeContainersPromise = removeContainers();
+    //    removeContainersPromise.then(function () {
+    //        console.log('Promise remove resolved');
+    //    }).catch(function (err) {
+    //        console.log('Promise remove rejected');
+    //        return next(err);
+    //    });
     //}
 
     agenda.define(enums.jobs.pollBlobsPending, function (job, done) {
         fetch(urlBlobs + '?state=' + enums.blobStates.pending, { headers: { 'Authorization': configCrowd.encodedAuth } })
         .then(res => {
-            expect(res.status).to.equal(200);
+            expect(res.status).to.equal(httpCodes.OK);
             return res.json();
         })
-        .then(json => processBlobsPending(json))
+        .then(blobs => processBlobsPending(blobs))
         .then(done())
         .catch(err => console.error(err));
     });
@@ -77,10 +75,10 @@ module.exports = function (agenda) {
     agenda.define(enums.jobs.pollBlobsTransformed, function (job, done) {
         fetch(urlBlobs + '?state=' + enums.blobStates.transformed, { headers: { 'Authorization': configCrowd.encodedAuth } })
         .then(res => {
-            expect(res.status).to.equal(200);
+            expect(res.status).to.equal(httpCodes.OK);
             return res.json();
         })
-        .then(json => processBlobs(json))
+        .then(blobs => processBlobsTransformed(blobs))
         .then(done())
         .catch(err => console.error(err));
     });
@@ -88,10 +86,10 @@ module.exports = function (agenda) {
     agenda.define(enums.jobs.pollBlobsAborted, function (job, done) {
         fetch(urlBlobs + '?state=' + enums.blobStates.aborted, { headers: { 'Authorization': configCrowd.encodedAuth } })
         .then(res => {
-            expect(res.status).to.equal(200);
+            expect(res.status).to.equal(httpCodes.OK);
             return res.json();
         })
-        .then(json => processBlobs(json))
+        .then(json => processBlobsAborted(json))
         .then(done())
         .catch(err => console.error(err));
     });
@@ -102,27 +100,254 @@ module.exports = function (agenda) {
 
 //////////////////////////////////////////////////////////
 // Start: Subfunctions for Pending blobs
-// Blob state is PENDING_TRANSFORMATION
+// Blob state is PENDING_TRANSFORMATION - This is provided as blobs
 // a. Retrieve the profile specified in blob metadata: GET /profiles/{id}
 // b. Dispatch a transformer container according to the profile
 // c. Call POST /profiles/{id} with op=transformationStarted
 function processBlobsPending(blobs) {
-    //console.log("Blobs to Process: ", blobs);
-    containerLogs(container);
+    console.log('Blobs to Process: ', blobs);
 
+    //Cycle trough each found blob
     _.forEach(blobs, function (urlBlob) {
+        //a: Get profile to be used for containers
         var getProfilePromise = getBlobProfile(urlBlob);
         getProfilePromise.then(function (profile) {
-            //console.log("JSON: ", profile); //This is profile name
+            console.log('---------------- Starting container -----------------');
+            console.log('Blob: ', urlBlob, ' with profile: ', profile); //This is profile name
+
+            //b: Dispatch transformer container
+            var dispatchTransformerPromise = dispatchTransformer(profile);
+            dispatchTransformerPromise.then(function (result) {
+                console.log('---------------- Starting container end, success: ', result, ' -----------------');
+
+                //c: Update blob state trough API
+                var data = { state: enums.blobStates.inProgress };
+                fetch(urlBlob, {
+                    method: 'POST',
+                    body: JSON.stringify(data),
+                    headers: {
+                        'Authorization': configCrowd.encodedAuth,
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json'
+                    }
+                })
+                .then(res => {
+                    expect(res.status).to.equal(httpCodes.Updated);
+                    console.log('Blob set to: ', data);
+                })
+                .catch(function (err) {
+                    console.error(err);
+                });
+            }).catch(function (err) {
+                console.error(err);
+            });
         }).catch(function (err) {
             console.error(err);
         });
     });
-
-    return;
 }
 
-function removeDockers() {
+function dispatchTransformer(profile) {
+    return new Promise(function (resolve, reject) {
+        expect(profile.transformation.abortOnInvalidRecords).to.be.not.null;
+        expect(profile.name).to.be.not.null;
+        expect(profile.blob).to.be.not.null;
+
+        var transformer = _.cloneDeep(configDocker.transformer);
+        transformer.Image = profile.transformation.image;
+        transformer.Labels.blobID = profile.blob;
+        transformer.Env = [
+            'ABORT_ON_INVALID_RECORDS=' + profile.transformation.abortOnInvalidRecords,
+            'QUEUE_NAME=' + profile.name,
+            'BLOB_ID=' + profile.blob,
+            'API_URL=' + configGeneral.urlAPI,
+            'API_USERNAME=' + configCrowd.username,
+            'API_PASSWORD=' + configCrowd.password
+        ];
+
+        docker.createContainer(
+            transformer
+        ).then(function (cont) {
+            return cont.start();
+        }).then(function (cont) {
+            resolve(true);
+        }).catch(function (err) {
+            reject(err);
+        });
+    });
+}
+// End: Subfunctions for Pending blobs
+//////////////////////////////////////////////////////////
+
+
+//////////////////////////////////////////////////////////
+// Start: Subfunctions for Transformed blobs
+// Blob state is TRANSFORMED - This is provided as blobs
+// a. If the are no running importer containers for the blob, retrieve the profile specified in blob metadata: GET /profiles/{id}
+// b. Dispatch importer containers according to the profile. The maximum number of containers to dispatch is specified by environment variable IMPORTER_CONCURRENCY
+// c. Call POST /blobs/{id} with op=TRANSFORMATION_IN_PROGRESS 
+function processBlobsTransformed(blobs) {
+    console.log('Blobs to Process: ', blobs);
+
+    docker.listContainers(function (err, totContainers) {
+        if (totContainers.length < configCtr.IMPORTER_CONCURRENCY) {
+            //Cycle trough each found blob
+            _.forEach(blobs, function (urlBlob) {
+                var searchOpts = {
+                    'filters': '{"label": ["fi.nationallibrary.melinda.record-import.container-type=import-task", "blobID=' + urlBlob.slice(urlBlob.lastIndexOf("/blobs/") + 7) + '"]}' //slice should be ID, but...
+                };
+
+                //a: If the are no running importer containers, get profile to be used for containers
+                docker.listContainers(searchOpts, function (err, containers) {
+                    console.log("Cont: ", containers)
+                    if (containers.length === 0) {
+                        var getProfilePromise = getBlobProfile(urlBlob);
+                        getProfilePromise.then(function (profile) {
+                            console.log('---------------- Starting container -----------------');
+                            console.log('Blob: ', urlBlob, ' with profile: ', profile); //This is profile name
+
+                            //b: Dispatch importer container
+                            var dispatchImporterPromise = dispatchImporter(profile);
+                            dispatchImporterPromise.then(function (result) {
+                                console.log('---------------- Starting container end, success: ', result, ' -----------------');
+
+                                //c: Update blob state trough API
+                                var data = { state: enums.blobStates.inProgress };
+                                fetch(urlBlob, {
+                                    method: 'POST',
+                                    body: JSON.stringify(data),
+                                    headers: {
+                                        'Authorization': configCrowd.encodedAuth,
+                                        'Content-Type': 'application/json',
+                                        'Accept': 'application/json'
+                                    }
+                                })
+                                .then(res => {
+                                    expect(res.status).to.equal(httpCodes.Updated);
+                                    console.log('Blob set to: ', data);
+                                })
+                                .catch(function (err) {
+                                    console.error(err);
+                                });
+                            }).catch(function (err) {
+                                console.error(err);
+                            });
+                        }).catch(function (err) {
+                            console.error(err);
+                        });
+                    }
+                });
+            });
+        } else {
+            console.error("Maximum number of jobs set in IMPORTER_CONCURRENCY (", configCtr.IMPORTER_CONCURRENCY, ") exceeded, running containers: ", totContainers);
+        }
+    });
+}
+
+function dispatchImporter(profile) {
+    return new Promise(function (resolve, reject) {
+        expect(profile.transformation.abortOnInvalidRecords).to.be.not.null;
+        expect(profile.name).to.be.not.null;
+        expect(profile.blob).to.be.not.null;
+
+        var importer = _.cloneDeep(configDocker.importer);
+        importer.Image = profile.import.image;
+        importer.Labels.blobID = profile.blob;
+        importer.Env = [
+            'QUEUE_NAME=' + profile.name,
+            'BLOB_ID=' + profile.blob,
+            'API_URL=' + configGeneral.urlAPI,
+            'API_USERNAME=' + configCrowd.username,
+            'API_PASSWORD=' + configCrowd.password
+        ];
+
+        docker.createContainer(
+            importer
+        ).then(function (cont) {
+            return cont.start();
+        }).then(function (cont) {
+            resolve(true);
+        }).catch(function (err) {
+            reject(err);
+        });
+    });
+}
+// End: Subfunctions for Transformed blobs
+//////////////////////////////////////////////////////////
+
+
+//////////////////////////////////////////////////////////
+// Start: Subfunctions for Aborted blobs
+// Blob state is ABORTED
+// a. Terminate any importer containers for the blob
+// b. Flush the blobs records from the queue
+function processBlobsAborted(blobs) {
+    console.log('Aborted blobs: ', blobs);
+
+    _.forEach(blobs, function (urlBlob) {
+        var searchOpts = {
+            'filters': '{"label": ["fi.nationallibrary.melinda.record-import.container-type=import-task", "blobID=' + urlBlob.slice(urlBlob.lastIndexOf("/blobs/") + 7) + '"]}' //slice should be ID, but...
+        };
+
+        //a: Terminate any importer containers for the blob
+        docker.listContainers(searchOpts, function (err, container) {
+            if (container.length === 1) {
+                docker.getContainer(container[0].Id).stop(function () {
+                    console.log("Container stopped");
+                });
+            } else {
+                console.log("Blob set as aborted, but found ", container.length, " matching containers, should be 1.")
+            }
+        });
+
+        //b. Flush the blobs records from the queue
+        //TBD
+    });
+}
+// End: Subfunctions for Aborted blobs
+//////////////////////////////////////////////////////////
+
+
+//////////////////////////////////////////////////////////
+// Start: Supporting functions
+function getBlobProfile(urlBlob) {
+    return new Promise(function (resolve, reject) {
+        //Get Profilename from blob
+        fetch(urlBlob, { headers: { 'Authorization': configCrowd.encodedAuth } })
+        .then(res => {
+            expect(res.status).to.equal(httpCodes.OK);
+            return res.json();
+        })
+        .then(json => {
+            expect(json).to.be.not.null;
+            expect(json).to.be.an('object');
+            expect(json.profile).to.be.not.null;
+            expect(json.profile).to.be.an('string'); //This is used in following query
+            expect(json.UUID).to.be.not.null;
+            expect(json.UUID).to.be.an('string'); //This is used in following resolve
+            return json; 
+        })
+        //Get Profile with profilename (ID)
+        .then(blob => {
+            var urlProfileLocal = urlProfile + blob.profile; //This is profile name
+            fetch(urlProfileLocal, { headers: { 'Authorization': configCrowd.encodedAuth } })
+            .then(res => {
+                expect(res.status).to.equal(httpCodes.OK);
+                return res.json();
+            })
+            .then(profile => {
+                expect(profile).to.be.not.null;
+                expect(profile).to.be.an('object');
+                profile.blob = blob.UUID; //Append profile with blob ID
+                resolve(profile); //This is profile
+            })
+            .catch(err => reject(err));
+        })
+        .catch(err => reject(err));
+    })
+}
+
+function removeContainers() {
     return new Promise(function (resolveMain, reject) {
         docker.listContainers(function (err, containers) {
             //Shut down all previous containers
@@ -137,92 +362,6 @@ function removeDockers() {
             Promise.all(requests).then(() => resolveMain());
         });
     });
-}
-
-function dispatchDocker() {
-    console.log("---------------- Starting container -----------------");
-    console.log("Host: ", docker.modem.host);
-
-    var transformer = _.cloneDeep(configDocker.transformer);
-    
-    docker.createContainer(
-        transformer
-    ).then(function (cont) {
-        return cont.start();
-    }).then(function (cont) {
-        container = cont;
-        console.log("---------------- Starting container end -----------------");
-        return cont;
-    }).catch(function (err) {
-        console.log(err);
-    });
-}
-// End: Subfunctions for Pending blobs
-//////////////////////////////////////////////////////////
-
-
-//////////////////////////////////////////////////////////
-// Start: Subfunctions for Transformed blobs
-// Blob state is TRANSFORMED
-// a. If the are no running importer containers for the blob, retrieve the profile specified in blob metadata: GET /profiles/{id}
-// b. Dispatch importer containers according to the profile. The maximum number of containers to dispatch is specified by environment variable IMPORTER_CONCURRENCY
-// c. Call POST /blobs/{id} with op=transformationStarted
-function processBlobsTransformed(blobs) {
-    console.log("Transformed blobs: ", blobs);
-
-    if (noContainers = true) { // If the are no running importer containers for the blob
-        _.forEach(blobs, function (urlBlob) {
-            var getProfilePromise = getBlobProfile(urlBlob);
-            getProfilePromise.then(function (profile) {
-                console.log("JSON: ", profile); //This is profile name
-            }).catch(function (err) {
-                console.error(err);
-            });
-        });
-    }
-
-    return;
-}
-// End: Subfunctions for Transformed blobs
-//////////////////////////////////////////////////////////
-
-
-//////////////////////////////////////////////////////////
-// Start: Subfunctions for Aborted blobs
-// Blob state is ABORTED
-// a. Terminate any importer containers for the blob
-// b. Flush the blobs records from the queue
-function processBlobsTransformed(blobs) {
-    console.log("Aborted blobs: ", blobs);
-
-    _.forEach(blobs, function (urlBlob) {
-        console.log(urlBlob);
-    });
-
-    return;
-}
-// End: Subfunctions for Aborted blobs
-//////////////////////////////////////////////////////////
-
-
-//////////////////////////////////////////////////////////
-// Start: Supporting functions
-function getBlobProfile(urlBlob) {
-    return new Promise(function (resolve, reject) {
-        fetch(urlBlob, { headers: { 'Authorization': configCrowd.encodedAuth } })
-        .then(res => {
-            expect(res.status).to.equal(200);
-            return res.json();
-        })
-        .then(json => {
-            expect(json).to.be.not.null;
-            expect(json).to.be.an('object');
-            expect(json.profile).to.be.not.null;
-            expect(json.profile).to.be.an('string');
-            resolve(json.profile);
-        })
-        .catch(err => reject(err));
-    })
 }
 
 function containerLogs(container) {

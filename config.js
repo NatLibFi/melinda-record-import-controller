@@ -29,3 +29,10 @@
 /* eslint-disable no-unused-vars */
 
 'use strict';
+exports.workerFrequency = {
+    pending: '10 seconds',
+    transformed: '10 seconds',
+    aborted: '10 seconds'
+};
+
+exports.IMPORTER_CONCURRENCY = process.env.IMPORTER_CONCURRENCY | 10;

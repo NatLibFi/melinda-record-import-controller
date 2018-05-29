@@ -33,21 +33,22 @@
 exports.DOCKER_API = 'https://docs.docker.com/engine/api/v1.25/#operation/';
 
 exports.transformer = {
-    Image: 'melinda-transformer', //'{profile.transformation.image}'
-    AttachStdout: true,
+    Image: '{profile.transformation.image}',
+    AttachStdout: true, //Used to read logs
     Labels: {
-        'fi.nationallibrary.melinda.record-import.container-type': 'transform-task'
+        'fi.nationallibrary.melinda.record-import.container-type': 'transform-task',
+        'blobID': null
     },
-    Tty: true,
+    /*
     ExposedPorts: {
-        "3002/tcp": {},
+        '3002/tcp': {},
     },
     PortBindings: {
-        "3002/tcp": [{
-            "HostIP": "0.0.0.0",
-            "HostPort": "3002"
+        '3002/tcp': [{
+            'HostIP': '0.0.0.0',
+            'HostPort': '3002'
         }]
-    },
+    },*/
     Env: [
       'ABORT_ON_INVALID_RECORDS={profile.transformation.abortOnInvalidRecords}',
       'QUEUE_NAME={profile-id}',
@@ -67,7 +68,8 @@ exports.transformer = {
 exports.importer = {
     Image: '{profile.import.image}',
     Labels: {
-        'fi.nationallibrary.melinda.record-import.container-type': 'import-task'
+        'fi.nationallibrary.melinda.record-import.container-type': 'import-task',
+        'blobID': null
     },
     Env: [
       'QUEUE_NAME={profile-id}',
@@ -75,58 +77,24 @@ exports.importer = {
       'API_URL={{API_URL}}',
       'API_USERNAME={TRANSFORMER_API_USERNAME}',
       'API_PASSWORD={TRANSFORMER_API_PASSWORD}'
-    ],
+    ]/*,
     Healthcheck: {
         'Test': ['CMD', 'curl -s localhost:8080/healthz'],
         'Interval': '30000000000',
         'Timeout': '10000000000',
         'Retries': '3'
-    }
+    }*/
 }
 
 
-/*{
-    Image: 'ubuntu',
-    AttachStdin: false,
-    AttachStdout: true,
-    AttachStderr: true,
-    Tty: true,
-    Cmd: ['/bin/bash', '-c', 'tail -f /var/log/dmesg'],
-    OpenStdin: false,
-    StdinOnce: false
-
-                
-}).then(function (cont) {
-    cont.attach({ stream: true, stdout: true, stderr: true }, function (err, stream) {
-        stream.pipe(process.stdout);
-        return cont;
-    });
-}*/
-
-/*.then(function (cont){
-        var logOpts = {
-            stdout: 1,
-            stderr: 1,
-            tail: 100,
-            follow: 0
-        };
-        cont.logs(logOpts, function (data, err) {
-            data.setEncoding('utf8');
-            data.on('data', function (data) {
-                for (var i in data) {
-                    console.log(data[i]);
-                }
-            })
-        });
-    }).then(function (cont) {
-        return cont.resize({
-            h: process.stdout.rows,
-            w: process.stdout.columns
-        });
-    }).then(function (cont) {
-        return cont.stop();
-    }).then(function (cont) {
-        return cont.remove();
-    }).then(function (data) {
-        console.log('cont removed');
-    })*/
+/*
+ExposedPorts: {
+    '3002/tcp': {},
+},
+PortBindings: {
+    '3002/tcp': [{
+        'HostIP': '0.0.0.0',
+        'HostPort': '3002'
+    }]
+},
+*/
