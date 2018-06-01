@@ -48,7 +48,7 @@ app.use(cors());
 
 //var isProduction = process.env.NODE_ENV === enums.environment.production;
 var isProduction = app.config.environment === enums.environment.production;
-
+process.env.AMQP_URL = null;
 
 // Normal express config defaults
 app.use(require('morgan')('dev'));

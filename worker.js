@@ -48,9 +48,9 @@ agenda.on('ready', () => {
         })
         agenda.every(configCtr.workerFrequency.pending, enums.jobs.pollBlobsPending);
 
-        agenda.every(configCtr.workerFrequency.transformed, enums.jobs.pollBlobsTransformed);
+        //agenda.every(configCtr.workerFrequency.transformed, enums.jobs.pollBlobsTransformed);
 
-        agenda.every(configCtr.workerFrequency.aborted, enums.jobs.pollBlobsAborted);
+        //agenda.every(configCtr.workerFrequency.aborted, enums.jobs.pollBlobsAborted);
 
         agenda.start();
     });

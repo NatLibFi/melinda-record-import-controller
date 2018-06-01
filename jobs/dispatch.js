@@ -47,6 +47,7 @@ var enums = require('../../melinda-record-import-commons/utils/enums'),
 var urlBlobs = configGeneral.urlAPI + '/blobs';
 var urlProfile = configGeneral.urlAPI + '/profiles/';
 var docker = new Docker();
+var _cont;
 
 //////////////////////////////////////////////////////////
 // Start: Defining jobs to be activated from worker
@@ -106,6 +107,7 @@ module.exports = function (agenda) {
 // c. Call POST /profiles/{id} with op=transformationStarted
 function processBlobsPending(blobs) {
     console.log('Pending blobs to Process: ', blobs);
+    containerLogs(_cont);
 
     //Cycle trough each found blob
     _.forEach(blobs, function (urlBlob) {
@@ -158,11 +160,12 @@ function dispatchTransformer(profile) {
         transformer.Labels.blobID = profile.blob;
         transformer.Env = [
             'ABORT_ON_INVALID_RECORDS=' + profile.transformation.abortOnInvalidRecords,
-            'QUEUE_NAME=' + profile.name,
+            'PROFILE_ID=' + profile.name,
             'BLOB_ID=' + profile.blob,
             'API_URL=' + configGeneral.urlAPI,
             'API_USERNAME=' + configCrowd.username,
-            'API_PASSWORD=' + configCrowd.password
+            'API_PASSWORD=' + configCrowd.password,
+            'AMQP_URL=' + process.env.AMQP_URL
         ];
 
         console.log('Launching Transformer: ', transformer);
@@ -172,6 +175,7 @@ function dispatchTransformer(profile) {
         ).then(function (cont) {
             return cont.start();
         }).then(function (cont) {
+            _cont = cont;
             resolve(true);
         }).catch(function (err) {
             reject(err);
@@ -261,11 +265,12 @@ function dispatchImporter(profile) {
         importer.Image = profile.import.image;
         importer.Labels.blobID = profile.blob;
         importer.Env = [
-            'QUEUE_NAME=' + profile.name,
+            'PROFILE_ID=' + profile.name,
             'BLOB_ID=' + profile.blob,
             'API_URL=' + configGeneral.urlAPI,
             'API_USERNAME=' + configCrowd.username,
-            'API_PASSWORD=' + configCrowd.password
+            'API_PASSWORD=' + configCrowd.password,
+            'AMQP_URL=' + process.env.AMQP_URL
         ];
 
         console.log('Launch Importer: ', importer);

@@ -51,18 +51,21 @@ exports.transformer = {
     },*/
     Env: [
       'ABORT_ON_INVALID_RECORDS={profile.transformation.abortOnInvalidRecords}',
-      'QUEUE_NAME={profile-id}',
+      'PROFILE_ID={profile-id}',
       'BLOB_ID={blob-id}*',
       'API_URL={{API_URL}}',
       'API_USERNAME={TRANSFORMER_API_USERNAME}',
-      'API_PASSWORD={TRANSFORMER_API_PASSWORD}'
-    ]/*,
+      'API_PASSWORD={TRANSFORMER_API_PASSWORD}',
+      'AMQP_URL={{AMQP_URL}}'
+    ],
+    /*
     Healthcheck: {
         'Test': ['CMD', 'curl -s localhost:8080/healthz'],
         'Interval': 300,
         'Timeout': 10,
         'Retries': '3'
-    }*/
+    }
+    */
 };
 
 exports.importer = {
@@ -73,11 +76,12 @@ exports.importer = {
         'blobID': null
     },
     Env: [
-      'QUEUE_NAME={profile-id}',
+      'PROFILE_ID={profile-id}',
       'BLOB_ID={blob-id}',
       'API_URL={{API_URL}}',
       'API_USERNAME={TRANSFORMER_API_USERNAME}',
-      'API_PASSWORD={TRANSFORMER_API_PASSWORD}'
+      'API_PASSWORD={TRANSFORMER_API_PASSWORD}',
+      'AMQP_URL={{AMQP_URL}}'
     ]/*,
     Healthcheck: {
         'Test': ['CMD', 'curl -s localhost:8080/healthz'],
@@ -86,16 +90,3 @@ exports.importer = {
         'Retries': '3'
     }*/
 }
-
-
-/*
-ExposedPorts: {
-    '3002/tcp': {},
-},
-PortBindings: {
-    '3002/tcp': [{
-        'HostIP': '0.0.0.0',
-        'HostPort': '3002'
-    }]
-},
-*/
