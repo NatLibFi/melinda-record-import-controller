@@ -35,7 +35,6 @@
     "publish-to-npm": "npm install && npm run lint && npm test && npm run coverage && npm publish --access=public"
   },
   "devDependencies": {
-    "git-scripts": "^0.2.1",
     "npm-check-updates": "^2.13.0",
     "rimraf": "^2.6.2",
     "mocha": "^4.0.1",
@@ -94,6 +93,7 @@
     "branches": 100
   },
   "dependencies": {
+    "@natlibfi/melinda-record-import-commons": "^1.1.10",
     "agenda": "^1.0.3",
     "body-parser": "^1.18.2",
     "cors": "^2.8.4",

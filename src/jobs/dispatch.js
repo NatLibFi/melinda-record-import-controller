@@ -30,6 +30,9 @@
 /* eslint-disable no-unused-vars */
 
 'use strict';
+
+import {configurationGeneral as config} from '@natlibfi/melinda-record-import-commons';
+
 var fetch = require('node-fetch'),
     _ = require('lodash'),
     chai = require('chai'),
@@ -37,22 +40,18 @@ var fetch = require('node-fetch'),
     Docker = require('dockerode'),
     stream = require('stream'); 
    
-var enums = require('../../melinda-record-import-commons/utils/enums'),
-    httpCodes = require('../../melinda-record-import-commons/utils/HttpCodes'),
-    configDocker = require('./configDocker'),
+var configDocker = require('./configDocker'),
     configCtr = require('../config'),
-    configGeneral = require('../../melinda-record-import-commons/config'),
-    configCrowd = require('../../melinda-record-import-commons/configCrowd');
+    configCrowd = require('../../config-crowd');
 
-var urlBlobs = configGeneral.urlAPI + '/blobs';
-var urlProfile = configGeneral.urlAPI + '/profiles/';
+var urlBlobs = config.urlAPI + '/blobs';
+var urlProfile = config.urlAPI + '/profiles/';
 var docker = new Docker();
-var _cont;
 
 //////////////////////////////////////////////////////////
 // Start: Defining jobs to be activated from worker
 module.exports = function (agenda) {
-    //if (configGeneral.environment === enums.environment.development) {
+    //if (configGeneral.environment === config.enums.environment.development) {
     //    var removeContainersPromise = removeContainers();
     //    removeContainersPromise.then(function () {
     //        console.log('Promise remove resolved');
@@ -62,10 +61,10 @@ module.exports = function (agenda) {
     //    });
     //}
 
-    agenda.define(enums.jobs.pollBlobsPending, function (job, done) {
-        fetch(urlBlobs + '?state=' + enums.blobStates.pending, { headers: { 'Authorization': configCrowd.encodedAuth } })
+    agenda.define(config.enums.jobs.pollBlobsPending, function (job, done) {
+        fetch(urlBlobs + '?state=' + config.enums.blobStates.pending, { headers: { 'Authorization': configCrowd.encodedAuth } })
         .then(res => {
-            expect(res.status).to.equal(httpCodes.OK);
+            expect(res.status).to.equal(config.httpCodes.OK);
             return res.json();
         })
         .then(blobs => processBlobsPending(blobs))
@@ -73,10 +72,10 @@ module.exports = function (agenda) {
         .catch(err => console.error(err));
     });
 
-    agenda.define(enums.jobs.pollBlobsTransformed, function (job, done) {
-        fetch(urlBlobs + '?state=' + enums.blobStates.transformed, { headers: { 'Authorization': configCrowd.encodedAuth } })
+    agenda.define(config.enums.jobs.pollBlobsTransformed, function (job, done) {
+        fetch(urlBlobs + '?state=' + config.enums.blobStates.transformed, { headers: { 'Authorization': configCrowd.encodedAuth } })
         .then(res => {
-            expect(res.status).to.equal(httpCodes.OK);
+            expect(res.status).to.equal(config.httpCodes.OK);
             return res.json();
         })
         .then(blobs => processBlobsTransformed(blobs))
@@ -84,10 +83,10 @@ module.exports = function (agenda) {
         .catch(err => console.error(err));
     });
 
-    agenda.define(enums.jobs.pollBlobsAborted, function (job, done) {
-        fetch(urlBlobs + '?state=' + enums.blobStates.aborted, { headers: { 'Authorization': configCrowd.encodedAuth } })
+    agenda.define(config.enums.jobs.pollBlobsAborted, function (job, done) {
+        fetch(urlBlobs + '?state=' + config.enums.blobStates.aborted, { headers: { 'Authorization': configCrowd.encodedAuth } })
         .then(res => {
-            expect(res.status).to.equal(httpCodes.OK);
+            expect(res.status).to.equal(config.httpCodes.OK);
             return res.json();
         })
         .then(json => processBlobsAborted(json))
@@ -107,7 +106,6 @@ module.exports = function (agenda) {
 // c. Call POST /profiles/{id} with op=transformationStarted
 function processBlobsPending(blobs) {
     console.log('Pending blobs to Process: ', blobs);
-    containerLogs(_cont);
 
     //Cycle trough each found blob
     _.forEach(blobs, function (urlBlob) {
@@ -123,7 +121,7 @@ function processBlobsPending(blobs) {
                 console.log('---------------- Starting container end, success: ', result, ' -----------------');
 
                 //c: Update blob state trough API
-                var data = { state: enums.blobStates.inProgress };
+                var data = { state: config.enums.blobStates.inProgress };
                 fetch(urlBlob, {
                     method: 'POST',
                     body: JSON.stringify(data),
@@ -134,7 +132,7 @@ function processBlobsPending(blobs) {
                     }
                 })
                 .then(res => {
-                    expect(res.status).to.equal(httpCodes.Updated);
+                    expect(res.status).to.equal(config.httpCodes.Updated);
                     console.log('Blob set to: ', data);
                 })
                 .catch(function (err) {
@@ -162,7 +160,7 @@ function dispatchTransformer(profile) {
             'ABORT_ON_INVALID_RECORDS=' + profile.transformation.abortOnInvalidRecords,
             'PROFILE_ID=' + profile.name,
             'BLOB_ID=' + profile.blob,
-            'API_URL=' + configGeneral.urlAPI,
+            'API_URL=' + config.urlAPI,
             'API_USERNAME=' + configCrowd.username,
             'API_PASSWORD=' + configCrowd.password,
             'AMQP_URL=' + process.env.AMQP_URL
@@ -175,7 +173,6 @@ function dispatchTransformer(profile) {
         ).then(function (cont) {
             return cont.start();
         }).then(function (cont) {
-            _cont = cont;
             resolve(true);
         }).catch(function (err) {
             reject(err);
@@ -221,7 +218,7 @@ function processBlobsTransformed(blobs) {
                                 console.log('---------------- Starting container end, success: ', result, ' -----------------');
 
                                 //c: Update blob state trough API
-                                var data = { state: enums.blobStates.inProgress };
+                                var data = { state: config.enums.blobStates.inProgress };
                                 fetch(urlBlob, {
                                     method: 'POST',
                                     body: JSON.stringify(data),
@@ -232,7 +229,7 @@ function processBlobsTransformed(blobs) {
                                     }
                                 })
                                 .then(res => {
-                                    expect(res.status).to.equal(httpCodes.Updated);
+                                    expect(res.status).to.equal(config.httpCodes.Updated);
                                     console.log('Blob set to: ', data);
                                 })
                                 .catch(function (err) {
@@ -267,7 +264,7 @@ function dispatchImporter(profile) {
         importer.Env = [
             'PROFILE_ID=' + profile.name,
             'BLOB_ID=' + profile.blob,
-            'API_URL=' + configGeneral.urlAPI,
+            'API_URL=' + config.urlAPI,
             'API_USERNAME=' + configCrowd.username,
             'API_PASSWORD=' + configCrowd.password,
             'AMQP_URL=' + process.env.AMQP_URL
@@ -329,7 +326,7 @@ function getBlobProfile(urlBlob) {
         //Get Profilename from blob
         fetch(urlBlob, { headers: { 'Authorization': configCrowd.encodedAuth } })
         .then(res => {
-            expect(res.status).to.equal(httpCodes.OK);
+            expect(res.status).to.equal(config.httpCodes.OK);
             return res.json();
         })
         .then(json => {
@@ -346,7 +343,7 @@ function getBlobProfile(urlBlob) {
             var urlProfileLocal = urlProfile + blob.profile; //This is profile name
             fetch(urlProfileLocal, { headers: { 'Authorization': configCrowd.encodedAuth } })
             .then(res => {
-                expect(res.status).to.equal(httpCodes.OK);
+                expect(res.status).to.equal(config.httpCodes.OK);
                 return res.json();
             })
             .then(profile => {

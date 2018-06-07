@@ -31,29 +31,27 @@
 'use strict';
 var Agenda = require('agenda');
 
-var configGeneral = require('../melinda-record-import-commons/config'),
-    configCtr = require('./config'),
-    enums = require('../melinda-record-import-commons/utils/enums');
+import {configurationGeneral as config} from '@natlibfi/melinda-record-import-commons';
 
-var agenda = new Agenda(configGeneral.agendaMongo);
+var configCtr = require('./config');
+
+var agenda = new Agenda(config.agendaMongo);
 
 //var jobTypes = process.env.JOB_TYPES ? process.env.JOB_TYPES.split(',') : [];
 var jobTypes = ['dispatch']; //Get jobs from dispatch file from jobs folder
 
 agenda.on('ready', () => {
-    agenda.cancel({ name: enums.jobs.pollBlobsPending }, function (err, numRemoved) {
-        console.log("Removed jobs: ", numRemoved, " errors: ", err);
-        jobTypes.forEach(function (type) {
-            require('./jobs/' + type)(agenda);
-        })
-        agenda.every(configCtr.workerFrequency.pending, enums.jobs.pollBlobsPending);
+    jobTypes.forEach(function (type) {
+        require('./jobs/' + type)(agenda);
+    })
 
-        //agenda.every(configCtr.workerFrequency.transformed, enums.jobs.pollBlobsTransformed);
+    agenda.every(configCtr.workerFrequency.pending, config.enums.jobs.pollBlobsPending);
 
-        //agenda.every(configCtr.workerFrequency.aborted, enums.jobs.pollBlobsAborted);
+    //agenda.every(configCtr.workerFrequency.transformed, config.enums.jobs.pollBlobsTransformed);
 
-        agenda.start();
-    });
+    //agenda.every(configCtr.workerFrequency.aborted, config.enums.jobs.pollBlobsAborted);
+
+    agenda.start();
 });
 
 module.exports = agenda;

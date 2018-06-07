@@ -30,25 +30,23 @@
 
 'use strict';
 
-var config = require('../melinda-record-import-commons/config'),
-    logs = config.logs,
-    enums = require('../melinda-record-import-commons/utils/enums'),
-    HttpCodes = require('../melinda-record-import-commons/utils/HttpCodes'),
-    express = require('express'),
+import {configurationGeneral as config} from '@natlibfi/melinda-record-import-commons';
+
+var express = require('express'),
     bodyParser = require('body-parser'),
     cors = require('cors'),
     mongoose = require('mongoose');
 
-
+const MANDATORY_ENV_VARIABLES = [
+    'AMQP_URL'
+];
 
 var app = express();
 app.config = config;
-app.enums = enums;
+app.enums = config.enums;
 app.use(cors());
 
-//var isProduction = process.env.NODE_ENV === enums.environment.production;
-var isProduction = app.config.environment === enums.environment.production;
-process.env.AMQP_URL = null;
+process.env.AMQP_URL = 'null';
 
 // Normal express config defaults
 app.use(require('morgan')('dev'));
@@ -57,19 +55,12 @@ app.use(bodyParser.json());
 
 require('./worker');
 
-if (isProduction) {
-    mongoose.connect(app.config.mongodb);
-} else {
-    mongoose.connect('mongodb://generalAdmin:ToDoChangeAdmin@127.0.0.1:27017/melinda-record-import-api');
-    mongoose.set('debug', config.mongoDebug);
-}
-
-console.log("Mongoose: ", mongoose.collections);
+mongoose.connect(app.config.mongodb.uri);
 
 // finally, let's start our server...
 var server = app.listen(app.config.portController, function () {
-    console.log('Listening on port ' + server.address().port + ', is in production: ' + isProduction);
+    console.log('Listening on port ' + server.address().port + ', is in production: ' + app.config.environment);
+    config.default(MANDATORY_ENV_VARIABLES);
 
-    console.log("Add: ", server.address());
-    //console.log('Env:', process.env);
+    console.log("Address: ", server.address());
 });
