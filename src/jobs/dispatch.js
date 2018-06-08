@@ -34,35 +34,27 @@
 import {configurationGeneral as config} from '@natlibfi/melinda-record-import-commons';
 
 var fetch = require('node-fetch'),
+    logs = config.logs,
     _ = require('lodash'),
     chai = require('chai'),
     expect = chai.expect,
     Docker = require('dockerode'),
     stream = require('stream'); 
    
-var configDocker = require('./configDocker'),
-    configCtr = require('../config'),
-    configCrowd = require('../../config-crowd');
+var configCtr = require('../config-controller');
 
-var urlBlobs = config.urlAPI + '/blobs';
-var urlProfile = config.urlAPI + '/profiles/';
+const urlBlobs = config.urlAPI + '/blobs',
+      urlProfile = config.urlAPI + '/profiles/',
+      encodedAuth = 'Basic ' + Buffer.from(process.env.CROWD_USERNAME + ':' + process.env.CROWD_PASS).toString('base64');
+
 var docker = new Docker();
+
 
 //////////////////////////////////////////////////////////
 // Start: Defining jobs to be activated from worker
 module.exports = function (agenda) {
-    //if (configGeneral.environment === config.enums.environment.development) {
-    //    var removeContainersPromise = removeContainers();
-    //    removeContainersPromise.then(function () {
-    //        console.log('Promise remove resolved');
-    //    }).catch(function (err) {
-    //        console.log('Promise remove rejected');
-    //        return next(err);
-    //    });
-    //}
-
     agenda.define(config.enums.jobs.pollBlobsPending, function (job, done) {
-        fetch(urlBlobs + '?state=' + config.enums.blobStates.pending, { headers: { 'Authorization': configCrowd.encodedAuth } })
+        fetch(urlBlobs + '?state=' + config.enums.blobStates.pending, { headers: { 'Authorization': encodedAuth } })
         .then(res => {
             expect(res.status).to.equal(config.httpCodes.OK);
             return res.json();
@@ -73,7 +65,7 @@ module.exports = function (agenda) {
     });
 
     agenda.define(config.enums.jobs.pollBlobsTransformed, function (job, done) {
-        fetch(urlBlobs + '?state=' + config.enums.blobStates.transformed, { headers: { 'Authorization': configCrowd.encodedAuth } })
+        fetch(urlBlobs + '?state=' + config.enums.blobStates.transformed, { headers: { 'Authorization': encodedAuth } })
         .then(res => {
             expect(res.status).to.equal(config.httpCodes.OK);
             return res.json();
@@ -84,7 +76,7 @@ module.exports = function (agenda) {
     });
 
     agenda.define(config.enums.jobs.pollBlobsAborted, function (job, done) {
-        fetch(urlBlobs + '?state=' + config.enums.blobStates.aborted, { headers: { 'Authorization': configCrowd.encodedAuth } })
+        fetch(urlBlobs + '?state=' + config.enums.blobStates.aborted, { headers: { 'Authorization': encodedAuth } })
         .then(res => {
             expect(res.status).to.equal(config.httpCodes.OK);
             return res.json();
@@ -105,20 +97,18 @@ module.exports = function (agenda) {
 // b. Dispatch a transformer container according to the profile
 // c. Call POST /profiles/{id} with op=transformationStarted
 function processBlobsPending(blobs) {
-    console.log('Pending blobs to Process: ', blobs);
+    if (logs) console.log('Pending blobs to Process: ', blobs);
 
     //Cycle trough each found blob
     _.forEach(blobs, function (urlBlob) {
         //a: Get profile to be used for containers
         var getProfilePromise = getBlobProfile(urlBlob);
-        getProfilePromise.then(function (profile) {
-            console.log('---------------- Starting TRANSFORMATION container -----------------');
-            //console.log('Blob: ', urlBlob, ' with profile: ', profile); //This is profile name
-
+        getProfilePromise.then(function (profile) { //This is profile name
+            if (logs) console.log('Starting TRANSFORMATION container');
             //b: Dispatch transformer container
             var dispatchTransformerPromise = dispatchTransformer(profile);
             dispatchTransformerPromise.then(function (result) {
-                console.log('---------------- Starting container end, success: ', result, ' -----------------');
+                if (logs) console.log('Starting TRANSFORMATION container end, success: ', result);
 
                 //c: Update blob state trough API
                 var data = { state: config.enums.blobStates.inProgress };
@@ -126,14 +116,14 @@ function processBlobsPending(blobs) {
                     method: 'POST',
                     body: JSON.stringify(data),
                     headers: {
-                        'Authorization': configCrowd.encodedAuth,
+                        'Authorization': encodedAuth,
                         'Content-Type': 'application/json',
                         'Accept': 'application/json'
                     }
                 })
                 .then(res => {
                     expect(res.status).to.equal(config.httpCodes.Updated);
-                    console.log('Blob set to: ', data);
+                    if (logs) console.log('Blob set to: ', data);
                 })
                 .catch(function (err) {
                     console.error(err);
@@ -153,7 +143,7 @@ function dispatchTransformer(profile) {
         expect(profile.name).to.be.not.null;
         expect(profile.blob).to.be.not.null;
 
-        var transformer = _.cloneDeep(configDocker.transformer);
+        var transformer = _.cloneDeep(configCtr.transformer);
         transformer.Image = profile.transformation.image;
         transformer.Labels.blobID = profile.blob;
         transformer.Env = [
@@ -161,12 +151,10 @@ function dispatchTransformer(profile) {
             'PROFILE_ID=' + profile.name,
             'BLOB_ID=' + profile.blob,
             'API_URL=' + config.urlAPI,
-            'API_USERNAME=' + configCrowd.username,
-            'API_PASSWORD=' + configCrowd.password,
+            'API_USERNAME=' + process.env.CROWD_USERNAME,
+            'API_PASSWORD=' + process.env.CROWD_PASS,
             'AMQP_URL=' + process.env.AMQP_URL
         ];
-
-        console.log('Launching Transformer: ', transformer);
 
         docker.createContainer(
             transformer
@@ -190,13 +178,13 @@ function dispatchTransformer(profile) {
 // b. Dispatch importer containers according to the profile. The maximum number of containers to dispatch is specified by environment variable IMPORTER_CONCURRENCY
 // c. Call POST /blobs/{id} with op=TRANSFORMATION_IN_PROGRESS 
 function processBlobsTransformed(blobs) {
-    console.log('Transformed blobs to Process: ', blobs);
+    if (logs) console.log('Transformed blobs to Process: ', blobs);
     var searchOptsImporters = {
         'filters': '{"label": ["fi.nationallibrary.melinda.record-import.container-type=import-task"]}'
     };
 
     docker.listContainers(searchOptsImporters, function (err, impContainers) {
-        console.log('Running import containers: ', impContainers.length, ' maximum: ', configCtr.IMPORTER_CONCURRENCY);
+        if (logs) console.log('Running import containers: ', impContainers.length, ' maximum: ', configCtr.IMPORTER_CONCURRENCY);
         if (impContainers.length < configCtr.IMPORTER_CONCURRENCY) {
             //Cycle trough each found blob
             _.forEach(blobs, function (urlBlob) {
@@ -209,13 +197,12 @@ function processBlobsTransformed(blobs) {
                     if (containers.length === 0) {
                         var getProfilePromise = getBlobProfile(urlBlob);
                         getProfilePromise.then(function (profile) {
-                            console.log('---------------- Starting IMPORT container -----------------');
-                            //console.log('Blob: ', urlBlob, ' with profile: ', profile); //This is profile name
+                            if (logs) console.log('Starting IMPORT container');
 
                             //b: Dispatch importer container
                             var dispatchImporterPromise = dispatchImporter(profile);
                             dispatchImporterPromise.then(function (result) {
-                                console.log('---------------- Starting container end, success: ', result, ' -----------------');
+                                if (logs) console.log('Starting container end, success: ', result);
 
                                 //c: Update blob state trough API
                                 var data = { state: config.enums.blobStates.inProgress };
@@ -223,14 +210,14 @@ function processBlobsTransformed(blobs) {
                                     method: 'POST',
                                     body: JSON.stringify(data),
                                     headers: {
-                                        'Authorization': configCrowd.encodedAuth,
+                                        'Authorization': encodedAuth,
                                         'Content-Type': 'application/json',
                                         'Accept': 'application/json'
                                     }
                                 })
                                 .then(res => {
                                     expect(res.status).to.equal(config.httpCodes.Updated);
-                                    console.log('Blob set to: ', data);
+                                    if (logs) console.log('Blob set to: ', data);
                                 })
                                 .catch(function (err) {
                                     console.error(err);
@@ -258,20 +245,18 @@ function dispatchImporter(profile) {
         expect(profile.name).to.be.not.null;
         expect(profile.blob).to.be.not.null;
 
-        var importer = _.cloneDeep(configDocker.importer);
+        var importer = _.cloneDeep(configCtr.importer);
         importer.Image = profile.import.image;
         importer.Labels.blobID = profile.blob;
         importer.Env = [
             'PROFILE_ID=' + profile.name,
             'BLOB_ID=' + profile.blob,
             'API_URL=' + config.urlAPI,
-            'API_USERNAME=' + configCrowd.username,
-            'API_PASSWORD=' + configCrowd.password,
+            'API_USERNAME=' + process.env.CROWD_USERNAME,
+            'API_PASSWORD=' + process.env.CROWD_PASS,
             'AMQP_URL=' + process.env.AMQP_URL
         ];
-
-        console.log('Launch Importer: ', importer);
-
+        
         docker.createContainer(
             importer
         ).then(function (cont) {
@@ -291,9 +276,8 @@ function dispatchImporter(profile) {
 // Start: Subfunctions for Aborted blobs
 // Blob state is ABORTED
 // a. Terminate any importer containers for the blob
-// b. Flush the blobs records from the queue
 function processBlobsAborted(blobs) {
-    console.log('Aborted blobs to process: ', blobs);
+    if (logs) console.log('Aborted blobs to process: ', blobs);
 
     _.forEach(blobs, function (urlBlob) {
         var searchOpts = {
@@ -304,15 +288,12 @@ function processBlobsAborted(blobs) {
         docker.listContainers(searchOpts, function (err, container) {
             if (container.length === 1) {
                 docker.getContainer(container[0].Id).stop(function () {
-                    console.log('Container stopped');
+                    if (logs) console.log('Container stopped');
                 });
             } else {
-                console.log('Blob (', urlBlob, ') set as aborted; but found ', container.length, ' matching containers.')
+                if (logs) console.log('Blob (', urlBlob, ') set as aborted; but found ', container.length, ' matching containers.')
             }
         });
-
-        //b. Flush the blobs records from the queue
-        //TBD
     });
 }
 // End: Subfunctions for Aborted blobs
@@ -324,7 +305,7 @@ function processBlobsAborted(blobs) {
 function getBlobProfile(urlBlob) {
     return new Promise(function (resolve, reject) {
         //Get Profilename from blob
-        fetch(urlBlob, { headers: { 'Authorization': configCrowd.encodedAuth } })
+        fetch(urlBlob, { headers: { 'Authorization': encodedAuth } })
         .then(res => {
             expect(res.status).to.equal(config.httpCodes.OK);
             return res.json();
@@ -341,7 +322,7 @@ function getBlobProfile(urlBlob) {
         //Get Profile with profilename (ID)
         .then(blob => {
             var urlProfileLocal = urlProfile + blob.profile; //This is profile name
-            fetch(urlProfileLocal, { headers: { 'Authorization': configCrowd.encodedAuth } })
+            fetch(urlProfileLocal, { headers: { 'Authorization': encodedAuth } })
             .then(res => {
                 expect(res.status).to.equal(config.httpCodes.OK);
                 return res.json();
@@ -375,6 +356,7 @@ function removeContainers() {
     });
 }
 
+//This is used to read logs from running containers, not used ATM
 function containerLogs(container) {
     if (container) {
         // create a single stream for stdin and stdout
@@ -404,3 +386,11 @@ function containerLogs(container) {
 }
 // End: Supporting functions
 //////////////////////////////////////////////////////////
+
+// var removeContainersPromise = removeContainers();
+// removeContainersPromise.then(function () {
+//     console.log('Promise remove resolved');
+// }).catch(function (err) {
+//     console.log('Promise remove rejected');
+//     return next(err);
+// });

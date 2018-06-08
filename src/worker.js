@@ -33,11 +33,10 @@ var Agenda = require('agenda');
 
 import {configurationGeneral as config} from '@natlibfi/melinda-record-import-commons';
 
-var configCtr = require('./config');
+var configCtr = require('./config-controller');
 
 var agenda = new Agenda(config.agendaMongo);
 
-//var jobTypes = process.env.JOB_TYPES ? process.env.JOB_TYPES.split(',') : [];
 var jobTypes = ['dispatch']; //Get jobs from dispatch file from jobs folder
 
 agenda.on('ready', () => {
@@ -47,9 +46,9 @@ agenda.on('ready', () => {
 
     agenda.every(configCtr.workerFrequency.pending, config.enums.jobs.pollBlobsPending);
 
-    //agenda.every(configCtr.workerFrequency.transformed, config.enums.jobs.pollBlobsTransformed);
+    agenda.every(configCtr.workerFrequency.transformed, config.enums.jobs.pollBlobsTransformed);
 
-    //agenda.every(configCtr.workerFrequency.aborted, config.enums.jobs.pollBlobsAborted);
+    agenda.every(configCtr.workerFrequency.aborted, config.enums.jobs.pollBlobsAborted);
 
     agenda.start();
 });

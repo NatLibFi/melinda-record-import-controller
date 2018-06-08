@@ -38,15 +38,35 @@ var express = require('express'),
     mongoose = require('mongoose');
 
 const MANDATORY_ENV_VARIABLES = [
-    'AMQP_URL'
+    'AMQP_URL',
+    'URL_API',
+    'PORT_CNTRL',
+    'MONGODB_URI',
+    'WORK_PEND',
+    'WORK_TRANS',
+    'WORK_ABORT',
+    'IMPORTER_CONCURRENCY',
+    'CROWD_USERNAME',
+    'CROWD_PASS'
 ];
+
+//If USE_DEF is set to true, app uses default values
+if(!process.env.USE_DEF){
+    config.default(MANDATORY_ENV_VARIABLES);
+}else{
+    var configCrowd = require('./config-crowd')
+    if(configCrowd){
+        process.env.CROWD_USERNAME = configCrowd.username;
+        process.env.CROWD_PASS = configCrowd.password;
+    }else{
+        throw new Error('Trying to use default variables, but Crowd configuration file not found');
+    }
+}
 
 var app = express();
 app.config = config;
 app.enums = config.enums;
 app.use(cors());
-
-process.env.AMQP_URL = 'null';
 
 // Normal express config defaults
 app.use(require('morgan')('dev'));
@@ -55,12 +75,9 @@ app.use(bodyParser.json());
 
 require('./worker');
 
-mongoose.connect(app.config.mongodb.uri);
+//mongoose.connect(app.config.mongodb.uri);
 
 // finally, let's start our server...
 var server = app.listen(app.config.portController, function () {
-    console.log('Listening on port ' + server.address().port + ', is in production: ' + app.config.environment);
-    config.default(MANDATORY_ENV_VARIABLES);
-
-    console.log("Address: ", server.address());
+    console.log('Server running at addres: ', server.address(), ' using API: ' , app.config.urlAPI);
 });
