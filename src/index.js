@@ -1,6 +1,6 @@
 /**
 *
-* @licstart  The following is the entire license notice for the JavaScript code in this file. 
+* @licstart  The following is the entire license notice for the JavaScript code in this file.
 *
 * API microservice of Melinda record batch import system
 *
@@ -32,52 +32,53 @@
 
 import {configurationGeneral as config} from '@natlibfi/melinda-record-import-commons';
 
-var express = require('express'),
-    bodyParser = require('body-parser'),
-    cors = require('cors'),
-    mongoose = require('mongoose');
+let express = require('express'),
+	bodyParser = require('body-parser'),
+	cors = require('cors'),
+	mongoose = require('mongoose');
 
 const MANDATORY_ENV_VARIABLES = [
-    'AMQP_URL',
-    'URL_API',
-    'PORT_CNTRL',
-    'MONGODB_URI',
-    'WORK_PEND',
-    'WORK_TRANS',
-    'WORK_ABORT',
-    'IMPORTER_CONCURRENCY',
-    'CROWD_USERNAME',
-    'CROWD_PASS'
+	'AMQP_URL',
+	'URL_API',
+	'PORT_CNTRL',
+	'MONGODB_URI',
+	'WORK_PEND',
+	'WORK_TRANS',
+	'WORK_ABORT',
+	'IMPORTER_CONCURRENCY',
+	'CROWD_USERNAME',
+	'CROWD_PASS'
 ];
 
-//If USE_DEF is set to true, app uses default values
-if(!process.env.USE_DEF){
-    config.default(MANDATORY_ENV_VARIABLES);
-}else{
-    var configCrowd = require('./config-crowd')
-    if(configCrowd){
-        process.env.CROWD_USERNAME = configCrowd.username;
-        process.env.CROWD_PASS = configCrowd.password;
-    }else{
-        throw new Error('Trying to use default variables, but Crowd configuration file not found');
-    }
+// If USE_DEF is set to true, app uses default values
+if (!process.env.USE_DEF) {
+	config.default(MANDATORY_ENV_VARIABLES);
+} else {
+	const configCrowd = require('./config-crowd');
+	if (configCrowd) {
+		process.env.CROWD_USERNAME = configCrowd.username;
+		process.env.CROWD_PASS = configCrowd.password;
+	} else {
+		throw new Error('Trying to use default variables, but Crowd configuration file not found');
+	}
 }
 
-var app = express();
+const app = express();
 app.config = config;
 app.enums = config.enums;
 app.use(cors());
 
 // Normal express config defaults
 app.use(require('morgan')('dev'));
-app.use(bodyParser.urlencoded({ extended: false }));
+
+app.use(bodyParser.urlencoded({extended: false}));
 app.use(bodyParser.json());
 
 require('./worker');
 
-//mongoose.connect(app.config.mongodb.uri);
+// Mongoose.connect(app.config.mongodb.uri);
 
 // finally, let's start our server...
-var server = app.listen(app.config.portController, function () {
-    console.log('Server running at addres: ', server.address(), ' using API: ' , app.config.urlAPI);
+var server = app.listen(app.config.portController, () => {
+	console.log('Server running at addres: ', server.address(), ' using API: ', app.config.urlAPI);
 });

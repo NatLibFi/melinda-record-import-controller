@@ -26,7 +26,7 @@
     "coverage": "nyc check-coverage",
     "clean": "rimraf build coverage .nyc_output dist",
     "build:transpile": "babel src --source-maps --out-dir=dist --minified",
-    "build": "npm run build:transpile && ncu",
+    "build": "npm run build:transpile && ncu --packageFile package.json",
     "dev": "npm run clean && npm run build:transpile",
     "dev:check": "npm run clean && npm run lint && npm test;npm run coverage;npm run dev",
     "dev:watch": "chokidar src -c 'npm run build:transpile && node dist/index.js'",

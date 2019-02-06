@@ -1,6 +1,6 @@
 /**
 *
-* @licstart  The following is the entire license notice for the JavaScript code in this file. 
+* @licstart  The following is the entire license notice for the JavaScript code in this file.
 *
 * API microservice of Melinda record batch import system
 *
@@ -28,29 +28,29 @@
 
 /* eslint-disable no-unused-vars */
 
-'use strict';
-var Agenda = require('agenda');
-
 import {configurationGeneral as config} from '@natlibfi/melinda-record-import-commons';
 
-var configCtr = require('./config-controller');
+'use strict';
+const Agenda = require('agenda');
 
-var agenda = new Agenda(config.agendaMongo);
+const configCtr = require('./config-controller');
 
-var jobTypes = ['dispatch']; //Get jobs from dispatch file from jobs folder
+const agenda = new Agenda(config.agendaMongo);
+
+const jobTypes = ['dispatch']; // Get jobs from dispatch file from jobs folder
 
 agenda.on('ready', () => {
-    jobTypes.forEach(function (type) {
-        require('./jobs/' + type)(agenda);
-    })
+	jobTypes.forEach(type => {
+		require('./jobs/' + type)(agenda);
+	});
 
-    agenda.every(configCtr.workerFrequency.pending, config.enums.jobs.pollBlobsPending);
+	agenda.every(configCtr.workerFrequency.pending, config.enums.jobs.pollBlobsPending);
 
-    agenda.every(configCtr.workerFrequency.transformed, config.enums.jobs.pollBlobsTransformed);
+	agenda.every(configCtr.workerFrequency.transformed, config.enums.jobs.pollBlobsTransformed);
 
-    agenda.every(configCtr.workerFrequency.aborted, config.enums.jobs.pollBlobsAborted);
+	agenda.every(configCtr.workerFrequency.aborted, config.enums.jobs.pollBlobsAborted);
 
-    agenda.start();
+	agenda.start();
 });
 
 module.exports = agenda;
