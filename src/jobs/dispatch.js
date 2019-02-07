@@ -27,25 +27,22 @@
 *
 */
 
-/* eslint-disable no-unused-vars */
-
+/* eslint no-unused-expressions: 0 max-nested-callbacks: 0 */
 'use strict';
 
 import {configurationGeneral as config} from '@natlibfi/melinda-record-import-commons';
 
-let fetch = require('node-fetch'),
-	logs = config.logs,
-	_ = require('lodash'),
-	chai = require('chai'),
-	expect = chai.expect,
-	Docker = require('dockerode'),
-	stream = require('stream');
+const logs = config.logs;
+const expect = require('chai').expect;
+const Docker = require('dockerode');
+const fetch = require('node-fetch');
+const _ = require('lodash');
 
 const configCtr = require('../config-controller');
 
-const urlBlobs = config.urlAPI + '/blobs',
-	urlProfile = config.urlAPI + '/profiles/',
-	encodedAuth = 'Basic ' + Buffer.from(process.env.CROWD_USERNAME + ':' + process.env.CROWD_PASS).toString('base64');
+const urlBlobs = config.urlAPI + '/blobs';
+const urlProfile = config.urlAPI + '/profiles/';
+const encodedAuth = 'Basic ' + Buffer.from(process.env.CROWD_USERNAME + ':' + process.env.CROWD_PASS).toString('base64');
 
 const docker = new Docker();
 
@@ -57,8 +54,7 @@ module.exports = function (agenda) {
         .then(res => {
 	expect(res.status).to.equal(config.httpCodes.OK);
 	return res.json();
-})
-        .then(blobs => processBlobsPending(blobs))
+}).then(blobs => processBlobsPending(blobs))
         .then(done())
         .catch(err => console.error(err));
 	});
@@ -68,8 +64,7 @@ module.exports = function (agenda) {
         .then(res => {
 	expect(res.status).to.equal(config.httpCodes.OK);
 	return res.json();
-})
-        .then(blobs => processBlobsTransformed(blobs))
+}).then(blobs => processBlobsTransformed(blobs))
         .then(done())
         .catch(err => console.error(err));
 	});
@@ -79,8 +74,7 @@ module.exports = function (agenda) {
         .then(res => {
 	expect(res.status).to.equal(config.httpCodes.OK);
 	return res.json();
-})
-        .then(json => processBlobsAborted(json))
+}).then(json => processBlobsAborted(json))
         .then(done())
         .catch(err => console.error(err));
 	});
@@ -167,6 +161,7 @@ function dispatchTransformer(profile) {
         ).then(cont => {
 	return cont.start();
 }).then(cont => {
+	console.log('Container started: ', cont);
 	resolve(true);
 }).catch(err => {
 	reject(err);
@@ -193,12 +188,12 @@ function processBlobsTransformed(blobs) {
 	docker.listContainers(searchOptsImporters, (err, impContainers) => {
 		if (logs) {
 			console.log('Running import containers: ', impContainers.length, ' maximum: ', configCtr.IMPORTER_CONCURRENCY);
-        }
-        
-        if(err){
-            console.error(err);
-        }
-        
+		}
+
+		if (err) {
+			console.error(err);
+		}
+
 		if (impContainers.length < configCtr.IMPORTER_CONCURRENCY) {
             // Cycle trough each found blob
 			_.forEach(blobs, urlBlob => {
@@ -208,9 +203,9 @@ function processBlobsTransformed(blobs) {
 
                 // A: If the are no running importer containers, get profile to be used for containers
 				docker.listContainers(searchOptsSingle, (err, containers) => {
-                    if(err){
-                        console.error(err);
-                    }
+					if (err) {
+						console.error(err);
+					}
 
 					if (containers.length === 0) {
 						const getProfilePromise = getBlobProfile(urlBlob);
@@ -237,14 +232,14 @@ function processBlobsTransformed(blobs) {
 										Accept: 'application/json'
 									}
 								}).then(res => {
-                                    expect(res.status).to.equal(config.httpCodes.Updated);
-                                    if (logs) {
-                                        console.log('Blob set to: ', data);
-                                    }
-                                }).catch(err => {
-                                    console.error(err);
-                                });
-                            }).catch(err => {
+									expect(res.status).to.equal(config.httpCodes.Updated);
+									if (logs) {
+										console.log('Blob set to: ', data);
+									}
+								}).catch(err => {
+									console.error(err);
+								});
+							}).catch(err => {
 								console.error(err);
 							});
 						}).catch(err => {
@@ -284,6 +279,7 @@ function dispatchImporter(profile) {
         ).then(cont => {
 	return cont.start();
 }).then(cont => {
+	console.log('Container started: ', cont);
 	resolve(true);
 }).catch(err => {
 	reject(err);
@@ -309,6 +305,10 @@ function processBlobsAborted(blobs) {
 
         // A: Terminate any importer containers for the blob
 		docker.listContainers(searchOpts, (err, container) => {
+			if (err) {
+				console.error(err);
+			}
+
 			if (container.length === 1) {
 				docker.getContainer(container[0].Id).stop(() => {
 					if (logs) {
@@ -363,51 +363,57 @@ function getBlobProfile(urlBlob) {
 	});
 }
 
-function removeContainers() {
-	return new Promise((resolveMain, reject) => {
-		docker.listContainers((err, containers) => {
-            // Shut down all previous containers
-			const requests = containers.map(containerInfo => {
-				return new Promise(resolve => {
-					docker.getContainer(containerInfo.Id).stop(() => {
-						resolve();
-					});
-				});
-			});
+// / Some supporting functions not in use atm:
+// function removeContainers() {
+// 	return new Promise((resolveMain, reject) => {
+// 		docker.listContainers((err, containers) => {
+// 			if (err) {
+// 				console.error(err);
+// 			}
 
-			Promise.all(requests).then(() => resolveMain());
-		});
-	});
-}
+//             // Shut down all previous containers
+// 			const requests = containers.map(containerInfo => {
+// 				return new Promise(resolve => {
+// 					docker.getContainer(containerInfo.Id).stop(() => {
+// 						resolve();
+// 					});
+// 				});
+// 			});
+
+// 			Promise.all(requests).then(() => resolveMain());
+// 		});
+// 	});
+// }
 
 // This is used to read logs from running containers, not used ATM
-function containerLogs(container) {
-	if (container) {
-        // Create a single stream for stdin and stdout
-		const logStream = new stream.PassThrough();
-		logStream.on('data', chunk => {
-			console.log(chunk.toString('utf8'));
-		});
+// function containerLogs(container) {
+//  const stream = require('stream');
+// 	if (container) {
+//         // Create a single stream for stdin and stdout
+// 		const logStream = new stream.PassThrough();
+// 		logStream.on('data', chunk => {
+// 			console.log(chunk.toString('utf8'));
+// 		});
 
-		container.logs({
-			follow: true,
-			stdout: true,
-			stderr: true
-		}, (err, stream) => {
-			if (err) {
-				return logger.error(err.message);
-			}
-			container.modem.demuxStream(stream, logStream, logStream);
-			stream.on('end', () => {
-				logStream.end('!Stream end');
-			});
+// 		container.logs({
+// 			follow: true,
+// 			stdout: true,
+// 			stderr: true
+// 		}, (err, stream) => {
+// 			if (err) {
+// 				return logger.error(err.message);
+// 			}
+// 			container.modem.demuxStream(stream, logStream, logStream);
+// 			stream.on('end', () => {
+// 				logStream.end('!Stream end');
+// 			});
 
-			setTimeout(() => {
-				stream.destroy();
-			}, 2000);
-		});
-	}
-}
+// 			setTimeout(() => {
+// 				stream.destroy();
+// 			}, 2000);
+// 		});
+// 	}
+// }
 // End: Supporting functions
 // ////////////////////////////////////////////////////////
 
