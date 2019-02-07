@@ -193,7 +193,12 @@ function processBlobsTransformed(blobs) {
 	docker.listContainers(searchOptsImporters, (err, impContainers) => {
 		if (logs) {
 			console.log('Running import containers: ', impContainers.length, ' maximum: ', configCtr.IMPORTER_CONCURRENCY);
-		}
+        }
+        
+        if(err){
+            console.error(err);
+        }
+        
 		if (impContainers.length < configCtr.IMPORTER_CONCURRENCY) {
             // Cycle trough each found blob
 			_.forEach(blobs, urlBlob => {
@@ -203,6 +208,10 @@ function processBlobsTransformed(blobs) {
 
                 // A: If the are no running importer containers, get profile to be used for containers
 				docker.listContainers(searchOptsSingle, (err, containers) => {
+                    if(err){
+                        console.error(err);
+                    }
+
 					if (containers.length === 0) {
 						const getProfilePromise = getBlobProfile(urlBlob);
 						getProfilePromise.then(profile => {
@@ -223,21 +232,19 @@ function processBlobsTransformed(blobs) {
 									method: 'POST',
 									body: JSON.stringify(data),
 									headers: {
-									Authorization: encodedAuth,
-									'Content-Type': 'application/json',
-									Accept: 'application/json'
-								}
-								})
-                                .then(res => {
-	expect(res.status).to.equal(config.httpCodes.Updated);
-	if (logs) {
-		console.log('Blob set to: ', data);
-	}
-})
-                                .catch(err => {
-	console.error(err);
-});
-							}).catch(err => {
+										Authorization: encodedAuth,
+										'Content-Type': 'application/json',
+										Accept: 'application/json'
+									}
+								}).then(res => {
+                                    expect(res.status).to.equal(config.httpCodes.Updated);
+                                    if (logs) {
+                                        console.log('Blob set to: ', data);
+                                    }
+                                }).catch(err => {
+                                    console.error(err);
+                                });
+                            }).catch(err => {
 								console.error(err);
 							});
 						}).catch(err => {

@@ -28,9 +28,10 @@
 
 /* eslint-disable no-unused-vars */
 
+'use strict';
+
 import {configurationGeneral as config} from '@natlibfi/melinda-record-import-commons';
 
-'use strict';
 const Agenda = require('agenda');
 
 const configCtr = require('./config-controller');
@@ -38,19 +39,20 @@ const configCtr = require('./config-controller');
 const agenda = new Agenda(config.agendaMongo);
 
 const jobTypes = ['dispatch']; // Get jobs from dispatch file from jobs folder
+module.exports = function () {
+	agenda.on('ready', () => {
+		jobTypes.forEach(type => {
+			require('./jobs/' + type)(agenda);
+		});
 
-agenda.on('ready', () => {
-	jobTypes.forEach(type => {
-		require('./jobs/' + type)(agenda);
+		agenda.every(configCtr.workerFrequency.pending, config.enums.jobs.pollBlobsPending);
+
+		agenda.every(configCtr.workerFrequency.transformed, config.enums.jobs.pollBlobsTransformed);
+
+		agenda.every(configCtr.workerFrequency.aborted, config.enums.jobs.pollBlobsAborted);
+
+		agenda.start();
 	});
-
-	agenda.every(configCtr.workerFrequency.pending, config.enums.jobs.pollBlobsPending);
-
-	agenda.every(configCtr.workerFrequency.transformed, config.enums.jobs.pollBlobsTransformed);
-
-	agenda.every(configCtr.workerFrequency.aborted, config.enums.jobs.pollBlobsAborted);
-
-	agenda.start();
-});
+};
 
 module.exports = agenda;

@@ -32,10 +32,10 @@
 
 import {configurationGeneral as config} from '@natlibfi/melinda-record-import-commons';
 
-let express = require('express'),
-	bodyParser = require('body-parser'),
-	cors = require('cors'),
-	mongoose = require('mongoose');
+const express = require('express');
+const bodyParser = require('body-parser');
+const cors = require('cors');
+// Const mongoose = require('mongoose');
 
 const MANDATORY_ENV_VARIABLES = [
 	'AMQP_URL',
@@ -51,9 +51,7 @@ const MANDATORY_ENV_VARIABLES = [
 ];
 
 // If USE_DEF is set to true, app uses default values
-if (!process.env.USE_DEF) {
-	config.default(MANDATORY_ENV_VARIABLES);
-} else {
+if (process.env.USE_DEF === true) {
 	const configCrowd = require('./config-crowd');
 	if (configCrowd) {
 		process.env.CROWD_USERNAME = configCrowd.username;
@@ -61,6 +59,8 @@ if (!process.env.USE_DEF) {
 	} else {
 		throw new Error('Trying to use default variables, but Crowd configuration file not found');
 	}
+} else {
+	config.default(MANDATORY_ENV_VARIABLES);
 }
 
 const app = express();
@@ -74,11 +74,11 @@ app.use(require('morgan')('dev'));
 app.use(bodyParser.urlencoded({extended: false}));
 app.use(bodyParser.json());
 
-require('./worker');
+require('./worker')();
 
 // Mongoose.connect(app.config.mongodb.uri);
 
 // finally, let's start our server...
-var server = app.listen(app.config.portController, () => {
+const server = app.listen(app.config.portController, () => {
 	console.log('Server running at addres: ', server.address(), ' using API: ', app.config.urlAPI);
 });

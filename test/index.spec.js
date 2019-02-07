@@ -30,7 +30,7 @@
 
 'use strict';
 
-import {expect} from 'chai';
-import * as testContext from '../src/index';
+// Import {expect} from 'chai';
+// import * as testContext from '../src/index';
 
-describe.skip('index');
+// describe.skip('index');
