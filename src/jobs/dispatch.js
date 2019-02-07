@@ -32,8 +32,8 @@
 
 import {configurationGeneral as config} from '@natlibfi/melinda-record-import-commons';
 
-const logs = config.logs;
-const expect = require('chai').expect;
+const {logs} = config;
+const {expect} = require('chai').expect;
 const Docker = require('dockerode');
 const fetch = require('node-fetch');
 const _ = require('lodash');
@@ -51,32 +51,32 @@ const docker = new Docker();
 module.exports = function (agenda) {
 	agenda.define(config.enums.jobs.pollBlobsPending, (job, done) => {
 		fetch(urlBlobs + '?state=' + config.enums.blobStates.pending, {headers: {Authorization: encodedAuth}})
-        .then(res => {
-	expect(res.status).to.equal(config.httpCodes.OK);
-	return res.json();
-}).then(blobs => processBlobsPending(blobs))
-        .then(done())
-        .catch(err => console.error(err));
+			.then(res => {
+				expect(res.status).to.equal(config.httpCodes.OK);
+				return res.json();
+			}).then(blobs => processBlobsPending(blobs))
+			.then(done())
+			.catch(error => console.error(error));
 	});
 
 	agenda.define(config.enums.jobs.pollBlobsTransformed, (job, done) => {
 		fetch(urlBlobs + '?state=' + config.enums.blobStates.transformed, {headers: {Authorization: encodedAuth}})
-        .then(res => {
-	expect(res.status).to.equal(config.httpCodes.OK);
-	return res.json();
-}).then(blobs => processBlobsTransformed(blobs))
-        .then(done())
-        .catch(err => console.error(err));
+			.then(res => {
+				expect(res.status).to.equal(config.httpCodes.OK);
+				return res.json();
+			}).then(blobs => processBlobsTransformed(blobs))
+			.then(done())
+			.catch(error => console.error(error));
 	});
 
 	agenda.define(config.enums.jobs.pollBlobsAborted, (job, done) => {
 		fetch(urlBlobs + '?state=' + config.enums.blobStates.aborted, {headers: {Authorization: encodedAuth}})
-        .then(res => {
-	expect(res.status).to.equal(config.httpCodes.OK);
-	return res.json();
-}).then(json => processBlobsAborted(json))
-        .then(done())
-        .catch(err => console.error(err));
+			.then(res => {
+				expect(res.status).to.equal(config.httpCodes.OK);
+				return res.json();
+			}).then(json => processBlobsAborted(json))
+			.then(done())
+			.catch(error => console.error(error));
 	});
 };
 // Start: Defining jobs to be activated from worker
@@ -90,25 +90,26 @@ module.exports = function (agenda) {
 // c. Call POST /profiles/{id} with op=transformationStarted
 function processBlobsPending(blobs) {
 	if (logs) {
-		console.log('Pending blobs to Process: ', blobs);
+		console.log('Pending blobs to Process:', blobs);
 	}
 
-    // Cycle trough each found blob
+	// Cycle trough each found blob
 	_.forEach(blobs, urlBlob => {
-        // A: Get profile to be used for containers
+		// A: Get profile to be used for containers
 		const getProfilePromise = getBlobProfile(urlBlob);
 		getProfilePromise.then(profile => { // This is profile name
 			if (logs) {
 				console.log('Starting TRANSFORMATION container');
 			}
-            // B: Dispatch transformer container
+
+			// B: Dispatch transformer container
 			const dispatchTransformerPromise = dispatchTransformer(profile);
 			dispatchTransformerPromise.then(result => {
 				if (logs) {
-					console.log('Starting TRANSFORMATION container end, success: ', result);
+					console.log('Starting TRANSFORMATION container end, success:', result);
 				}
 
-                // C: Update blob state trough API
+				// C: Update blob state trough API
 				const data = {state: config.enums.blobStates.inProgress};
 				fetch(urlBlob, {
 					method: 'POST',
@@ -119,20 +120,20 @@ function processBlobsPending(blobs) {
 						Accept: 'application/json'
 					}
 				})
-                .then(res => {
-	expect(res.status).to.equal(config.httpCodes.Updated);
-	if (logs) {
-		console.log('Blob set to: ', data);
-	}
-})
-                .catch(err => {
-	console.error(err);
-});
-			}).catch(err => {
-				console.error(err);
+					.then(res => {
+						expect(res.status).to.equal(config.httpCodes.Updated);
+						if (logs) {
+							console.log('Blob set to:', data);
+						}
+					})
+					.catch(error => {
+						console.error(error);
+					});
+			}).catch(error => {
+				console.error(error);
 			});
-		}).catch(err => {
-			console.error(err);
+		}).catch(error => {
+			console.error(error);
 		});
 	});
 }
@@ -157,15 +158,15 @@ function dispatchTransformer(profile) {
 		];
 
 		docker.createContainer(
-            transformer
-        ).then(cont => {
-	return cont.start();
-}).then(cont => {
-	console.log('Container started: ', cont);
-	resolve(true);
-}).catch(err => {
-	reject(err);
-});
+			transformer
+		).then(cont => {
+			return cont.start();
+		}).then(cont => {
+			console.log('Container started:', cont);
+			resolve(true);
+		}).catch(error => {
+			reject(error);
+		});
 	});
 }
 // End: Subfunctions for Pending blobs
@@ -179,32 +180,33 @@ function dispatchTransformer(profile) {
 // c. Call POST /blobs/{id} with op=TRANSFORMATION_IN_PROGRESS
 function processBlobsTransformed(blobs) {
 	if (logs) {
-		console.log('Transformed blobs to Process: ', blobs);
+		console.log('Transformed blobs to Process:', blobs);
 	}
+
 	const searchOptsImporters = {
 		filters: '{"label": ["fi.nationallibrary.melinda.record-import.container-type=import-task"]}'
 	};
 
-	docker.listContainers(searchOptsImporters, (err, impContainers) => {
+	docker.listContainers(searchOptsImporters, (error, impContainers) => {
 		if (logs) {
-			console.log('Running import containers: ', impContainers.length, ' maximum: ', configCtr.IMPORTER_CONCURRENCY);
+			console.log('Running import containers:', impContainers.length, 'maximum:', configCtr.IMPORTER_CONCURRENCY);
 		}
 
-		if (err) {
-			console.error(err);
+		if (error) {
+			console.error(error);
 		}
 
 		if (impContainers.length < configCtr.IMPORTER_CONCURRENCY) {
-            // Cycle trough each found blob
+			// Cycle trough each found blob
 			_.forEach(blobs, urlBlob => {
 				const searchOptsSingle = {
 					filters: '{"label": ["fi.nationallibrary.melinda.record-import.container-type=import-task", "blobID=' + urlBlob.slice(urlBlob.lastIndexOf('/blobs/') + 7) + '"]}' // Slice should be ID, but...
 				};
 
-                // A: If the are no running importer containers, get profile to be used for containers
-				docker.listContainers(searchOptsSingle, (err, containers) => {
-					if (err) {
-						console.error(err);
+				// A: If the are no running importer containers, get profile to be used for containers
+				docker.listContainers(searchOptsSingle, (error, containers) => {
+					if (error) {
+						console.error(error);
 					}
 
 					if (containers.length === 0) {
@@ -214,14 +216,14 @@ function processBlobsTransformed(blobs) {
 								console.log('Starting IMPORT container');
 							}
 
-                            // B: Dispatch importer container
+							// B: Dispatch importer container
 							const dispatchImporterPromise = dispatchImporter(profile);
 							dispatchImporterPromise.then(result => {
 								if (logs) {
-									console.log('Starting container end, success: ', result);
+									console.log('Starting container end, success:', result);
 								}
 
-                                // C: Update blob state trough API
+								// C: Update blob state trough API
 								const data = {state: config.enums.blobStates.inProgress};
 								fetch(urlBlob, {
 									method: 'POST',
@@ -234,24 +236,24 @@ function processBlobsTransformed(blobs) {
 								}).then(res => {
 									expect(res.status).to.equal(config.httpCodes.Updated);
 									if (logs) {
-										console.log('Blob set to: ', data);
+										console.log('Blob set to:', data);
 									}
-								}).catch(err => {
-									console.error(err);
+								}).catch(error => {
+									console.error(error);
 								});
-							}).catch(err => {
-								console.error(err);
+							}).catch(error => {
+								console.error(error);
 							});
-						}).catch(err => {
-							console.error(err);
+						}).catch(error => {
+							console.error(error);
 						});
 					} else {
-						console.error('There is already container running for blob: ', urlBlob);
+						console.error('There is already container running for blob:', urlBlob);
 					}
 				});
 			});
 		} else {
-			console.error('Maximum number of jobs set in IMPORTER_CONCURRENCY (', configCtr.IMPORTER_CONCURRENCY, ') exceeded, running containers: ', impContainers);
+			console.error('Maximum number of jobs set in IMPORTER_CONCURRENCY (', configCtr.IMPORTER_CONCURRENCY, ') exceeded, running containers:', impContainers);
 		}
 	});
 }
@@ -275,15 +277,15 @@ function dispatchImporter(profile) {
 		];
 
 		docker.createContainer(
-            importer
-        ).then(cont => {
-	return cont.start();
-}).then(cont => {
-	console.log('Container started: ', cont);
-	resolve(true);
-}).catch(err => {
-	reject(err);
-});
+			importer
+		).then(cont => {
+			return cont.start();
+		}).then(cont => {
+			console.log('Container started:', cont);
+			resolve(true);
+		}).catch(error => {
+			reject(error);
+		});
 	});
 }
 // End: Subfunctions for Transformed blobs
@@ -295,7 +297,7 @@ function dispatchImporter(profile) {
 // a. Terminate any importer containers for the blob
 function processBlobsAborted(blobs) {
 	if (logs) {
-		console.log('Aborted blobs to process: ', blobs);
+		console.log('Aborted blobs to process:', blobs);
 	}
 
 	_.forEach(blobs, urlBlob => {
@@ -303,10 +305,10 @@ function processBlobsAborted(blobs) {
 			filters: '{"label": ["fi.nationallibrary.melinda.record-import.container-type=import-task", "blobID=' + urlBlob.slice(urlBlob.lastIndexOf('/blobs/') + 7) + '"]}' // Slice should be ID, but...
 		};
 
-        // A: Terminate any importer containers for the blob
-		docker.listContainers(searchOpts, (err, container) => {
-			if (err) {
-				console.error(err);
+		// A: Terminate any importer containers for the blob
+		docker.listContainers(searchOpts, (error, container) => {
+			if (error) {
+				console.error(error);
 			}
 
 			if (container.length === 1) {
@@ -316,7 +318,7 @@ function processBlobsAborted(blobs) {
 					}
 				});
 			} else if (logs) {
-				console.log('Blob (', urlBlob, ') set as aborted; but found ', container.length, ' matching containers.');
+				console.log('Blob (', urlBlob, ') set as aborted; but found', container.length, 'matching containers.');
 			}
 		});
 	});
@@ -328,47 +330,47 @@ function processBlobsAborted(blobs) {
 // Start: Supporting functions
 function getBlobProfile(urlBlob) {
 	return new Promise((resolve, reject) => {
-        // Get Profilename from blob
+		// Get Profilename from blob
 		fetch(urlBlob, {headers: {Authorization: encodedAuth}})
-        .then(res => {
-	expect(res.status).to.equal(config.httpCodes.OK);
-	return res.json();
-})
-        .then(json => {
-	expect(json).to.be.not.null;
-	expect(json).to.be.an('object');
-	expect(json.profile).to.be.not.null;
-	expect(json.profile).to.be.an('string'); // This is used in following query
-	expect(json.UUID).to.be.not.null;
-	expect(json.UUID).to.be.an('string'); // This is used in following resolve
-	return json;
-})
-        // Get Profile with profilename (ID)
-        .then(blob => {
-	const urlProfileLocal = urlProfile + blob.profile; // This is profile name
-	fetch(urlProfileLocal, {headers: {Authorization: encodedAuth}})
-            .then(res => {
-	expect(res.status).to.equal(config.httpCodes.OK);
-	return res.json();
-})
-            .then(profile => {
-	expect(profile).to.be.not.null;
-	expect(profile).to.be.an('object');
-	profile.blob = blob.UUID; // Append profile with blob ID
-	resolve(profile); // This is profile
-})
-            .catch(err => reject(err));
-})
-        .catch(err => reject(err));
+			.then(res => {
+				expect(res.status).to.equal(config.httpCodes.OK);
+				return res.json();
+			})
+			.then(json => {
+				expect(json).to.be.not.null;
+				expect(json).to.be.an('object');
+				expect(json.profile).to.be.not.null;
+				expect(json.profile).to.be.an('string'); // This is used in following query
+				expect(json.UUID).to.be.not.null;
+				expect(json.UUID).to.be.an('string'); // This is used in following resolve
+				return json;
+			})
+		// Get Profile with profilename (ID)
+			.then(blob => {
+				const urlProfileLocal = urlProfile + blob.profile; // This is profile name
+				fetch(urlProfileLocal, {headers: {Authorization: encodedAuth}})
+					.then(res => {
+						expect(res.status).to.equal(config.httpCodes.OK);
+						return res.json();
+					})
+					.then(profile => {
+						expect(profile).to.be.not.null;
+						expect(profile).to.be.an('object');
+						profile.blob = blob.UUID; // Append profile with blob ID
+						resolve(profile); // This is profile
+					})
+					.catch(error => reject(error));
+			})
+			.catch(error => reject(error));
 	});
 }
 
 // / Some supporting functions not in use atm:
 // function removeContainers() {
 // 	return new Promise((resolveMain, reject) => {
-// 		docker.listContainers((err, containers) => {
-// 			if (err) {
-// 				console.error(err);
+// 		docker.listContainers((error, containers) => {
+// 			if (error) {
+// 				console.error(error);
 // 			}
 
 //             // Shut down all previous containers
@@ -399,9 +401,9 @@ function getBlobProfile(urlBlob) {
 // 			follow: true,
 // 			stdout: true,
 // 			stderr: true
-// 		}, (err, stream) => {
-// 			if (err) {
-// 				return logger.error(err.message);
+// 		}, (error, stream) => {
+// 			if (error) {
+// 				return logger.error(error.message);
 // 			}
 // 			container.modem.demuxStream(stream, logStream, logStream);
 // 			stream.on('end', () => {
@@ -420,7 +422,7 @@ function getBlobProfile(urlBlob) {
 // var removeContainersPromise = removeContainers();
 // removeContainersPromise.then(function () {
 //     console.log('Promise remove resolved');
-// }).catch(function (err) {
+// }).catch(function (error) {
 //     console.log('Promise remove rejected');
-//     return next(err);
+//     return next(error);
 // });

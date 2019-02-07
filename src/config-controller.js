@@ -26,8 +26,6 @@
 *
 */
 
-/* eslint-disable no-unused-vars */
-
 'use strict';
 exports.workerFrequency = {
 	pending: process.env.WORK_PEND || '10 seconds',
@@ -53,7 +51,7 @@ exports.transformer = {
 		'API_PASSWORD={TRANSFORMER_API_PASSWORD}',
 		'AMQP_URL={{AMQP_URL}}'
 	]
-    /*
+	/*
     Healthcheck: {
         'Test': ['CMD', 'curl -s localhost:8080/healthz'],
         'Interval': 300,

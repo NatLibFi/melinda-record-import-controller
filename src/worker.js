@@ -26,8 +26,6 @@
 *
 */
 
-/* eslint-disable no-unused-vars */
-
 'use strict';
 
 import {configurationGeneral as config} from '@natlibfi/melinda-record-import-commons';

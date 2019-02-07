@@ -26,8 +26,6 @@
 *
 */
 
-/* eslint-disable no-unused-vars */
-
 'use strict';
 
 import {configurationGeneral as config} from '@natlibfi/melinda-record-import-commons';
@@ -80,5 +78,5 @@ require('./worker')();
 
 // finally, let's start our server...
 const server = app.listen(app.config.portController, () => {
-	console.log('Server running at addres: ', server.address(), ' using API: ', app.config.urlAPI);
+	console.log('Server running at addres:', server.address(), 'using API:', app.config.urlAPI);
 });

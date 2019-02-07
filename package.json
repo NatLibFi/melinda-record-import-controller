@@ -35,21 +35,21 @@
     "publish-to-npm": "npm install && npm run lint && npm test && npm run coverage && npm publish --access=public"
   },
   "devDependencies": {
-    "npm-check-updates": "^2.13.0",
-    "rimraf": "^2.6.2",
-    "mocha": "^4.0.1",
-    "xo": "^0.18.2",
+    "npm-check-updates": "^2.15.0",
+    "rimraf": "^2.6.3",
+    "mocha": "^5.2.0",
+    "xo": "^0.24.0",
     "istanbul": "^0.4.5",
-    "chai": "^4.1.2",
-    "nyc": "^11.3.0",
-    "cross-env": "^5.1.1",
-    "chokidar-cli": "^1.2.0",
+    "chai": "^4.2.0",
+    "nyc": "^13.2.0",
+    "cross-env": "^5.2.0",
+    "chokidar-cli": "^1.2.1",
     "babel-cli": "^6.26.0",
     "babel-register": "^6.26.0",
-    "babel-preset-env": "^1.6.1",
-    "babel-plugin-istanbul": "^4.1.5",
-    "nodemon": "^1.12.4",
-    "codeclimate-test-reporter": "^0.5.0"
+    "babel-preset-env": "^1.7.0",
+    "babel-plugin-istanbul": "^5.1.0",
+    "nodemon": "^1.18.9",
+    "codeclimate-test-reporter": "^0.5.1"
   },
   "xo": {
     "rules": {
@@ -93,15 +93,15 @@
     "branches": 100
   },
   "dependencies": {
-    "@natlibfi/melinda-record-import-commons": "^1.1.11",
-    "agenda": "^1.0.3",
-    "body-parser": "^1.18.2",
-    "cors": "^2.8.4",
-    "dockerode": "^2.5.5",
-    "express": "^4.16.3",
+    "@natlibfi/melinda-record-import-commons": "^1.7.0",
+    "agenda": "^2.0.2",
+    "body-parser": "^1.18.3",
+    "cors": "^2.8.5",
+    "dockerode": "^2.5.8",
+    "express": "^4.16.4",
     "lodash": "^4.17.11",
-    "morgan": "^1.9.0",
-    "node-fetch": "^2.1.2",
+    "morgan": "^1.9.1",
+    "node-fetch": "^2.3.0",
     "stream": "0.0.2"
   }
 }
