@@ -28,14 +28,14 @@
 
 'use strict';
 
-import {configurationGeneral as config} from '@natlibfi/melinda-record-import-commons';
+import {CommonUtils} from '@natlibfi/melinda-record-import-commons';
+import config from './config-controller';
 
 const express = require('express');
 const bodyParser = require('body-parser');
 const cors = require('cors');
-// Const mongoose = require('mongoose');
 
-const MANDATORY_ENV_VARIABLES = [
+let MANDATORY_ENV_VARIABLES = [
 	'AMQP_URL',
 	'URL_API',
 	'PORT_CNTRL',
@@ -48,22 +48,17 @@ const MANDATORY_ENV_VARIABLES = [
 	'CROWD_PASS'
 ];
 
-// If USE_DEF is set to true, app uses default values
-if (process.env.USE_DEF === true) {
-	const configCrowd = require('./config-crowd');
-	if (configCrowd) {
-		process.env.CROWD_USERNAME = configCrowd.username;
-		process.env.CROWD_PASS = configCrowd.password;
-	} else {
-		throw new Error('Trying to use default variables, but Crowd configuration file not found');
-	}
-} else {
-	config.default(MANDATORY_ENV_VARIABLES);
+if (process.env.USE_DEF === 'true') {
+	MANDATORY_ENV_VARIABLES = [
+		'CROWD_USERNAME',
+		'CROWD_PASS'
+	];
 }
+
+CommonUtils.checkEnv(MANDATORY_ENV_VARIABLES); // Check that all values are set
 
 const app = express();
 app.config = config;
-app.enums = config.enums;
 app.use(cors());
 
 // Normal express config defaults

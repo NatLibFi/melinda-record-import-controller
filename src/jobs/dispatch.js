@@ -30,15 +30,12 @@
 /* eslint no-unused-expressions: 0 max-nested-callbacks: 0 */
 'use strict';
 
-import {configurationGeneral as config} from '@natlibfi/melinda-record-import-commons';
-
 const {logs} = config;
 const {expect} = require('chai').expect;
 const Docker = require('dockerode');
 const fetch = require('node-fetch');
 const _ = require('lodash');
-
-const configCtr = require('../config-controller');
+const config = require('../config-controller');
 
 const urlBlobs = config.urlAPI + '/blobs';
 const urlProfile = config.urlAPI + '/profiles/';
@@ -49,8 +46,8 @@ const docker = new Docker();
 // ////////////////////////////////////////////////////////
 // Start: Defining jobs to be activated from worker
 module.exports = function (agenda) {
-	agenda.define(config.enums.jobs.pollBlobsPending, (job, done) => {
-		fetch(urlBlobs + '?state=' + config.enums.blobStates.pending, {headers: {Authorization: encodedAuth}})
+	agenda.define(config.jobs.pollBlobsPending, (job, done) => {
+		fetch(urlBlobs + '?state=' + config.blobStates.pending, {headers: {Authorization: encodedAuth}})
 			.then(res => {
 				expect(res.status).to.equal(config.httpCodes.OK);
 				return res.json();
@@ -59,8 +56,8 @@ module.exports = function (agenda) {
 			.catch(error => console.error(error));
 	});
 
-	agenda.define(config.enums.jobs.pollBlobsTransformed, (job, done) => {
-		fetch(urlBlobs + '?state=' + config.enums.blobStates.transformed, {headers: {Authorization: encodedAuth}})
+	agenda.define(config.jobs.pollBlobsTransformed, (job, done) => {
+		fetch(urlBlobs + '?state=' + config.blobStates.transformed, {headers: {Authorization: encodedAuth}})
 			.then(res => {
 				expect(res.status).to.equal(config.httpCodes.OK);
 				return res.json();
@@ -69,8 +66,8 @@ module.exports = function (agenda) {
 			.catch(error => console.error(error));
 	});
 
-	agenda.define(config.enums.jobs.pollBlobsAborted, (job, done) => {
-		fetch(urlBlobs + '?state=' + config.enums.blobStates.aborted, {headers: {Authorization: encodedAuth}})
+	agenda.define(config.jobs.pollBlobsAborted, (job, done) => {
+		fetch(urlBlobs + '?state=' + config.blobStates.aborted, {headers: {Authorization: encodedAuth}})
 			.then(res => {
 				expect(res.status).to.equal(config.httpCodes.OK);
 				return res.json();
@@ -110,7 +107,7 @@ function processBlobsPending(blobs) {
 				}
 
 				// C: Update blob state trough API
-				const data = {state: config.enums.blobStates.inProgress};
+				const data = {state: config.blobStates.inProgress};
 				fetch(urlBlob, {
 					method: 'POST',
 					body: JSON.stringify(data),
@@ -144,7 +141,7 @@ function dispatchTransformer(profile) {
 		expect(profile.name).to.be.not.null;
 		expect(profile.blob).to.be.not.null;
 
-		const transformer = _.cloneDeep(configCtr.transformer);
+		const transformer = _.cloneDeep(config.transformer);
 		transformer.Image = profile.transformation.image;
 		transformer.Labels.blobID = profile.blob;
 		transformer.Env = [
@@ -154,7 +151,7 @@ function dispatchTransformer(profile) {
 			'API_URL=' + config.urlAPI,
 			'API_USERNAME=' + process.env.CROWD_USERNAME,
 			'API_PASSWORD=' + process.env.CROWD_PASS,
-			'AMQP_URL=' + process.env.AMQP_URL
+			'AMQP_URL=' + config.AMQP_URL
 		];
 
 		docker.createContainer(
@@ -189,14 +186,14 @@ function processBlobsTransformed(blobs) {
 
 	docker.listContainers(searchOptsImporters, (error, impContainers) => {
 		if (logs) {
-			console.log('Running import containers:', impContainers.length, 'maximum:', configCtr.IMPORTER_CONCURRENCY);
+			console.log('Running import containers:', impContainers.length, 'maximum:', config.IMPORTER_CONCURRENCY);
 		}
 
 		if (error) {
 			console.error(error);
 		}
 
-		if (impContainers.length < configCtr.IMPORTER_CONCURRENCY) {
+		if (impContainers.length < config.IMPORTER_CONCURRENCY) {
 			// Cycle trough each found blob
 			_.forEach(blobs, urlBlob => {
 				const searchOptsSingle = {
@@ -224,7 +221,7 @@ function processBlobsTransformed(blobs) {
 								}
 
 								// C: Update blob state trough API
-								const data = {state: config.enums.blobStates.inProgress};
+								const data = {state: config.blobStates.inProgress};
 								fetch(urlBlob, {
 									method: 'POST',
 									body: JSON.stringify(data),
@@ -253,7 +250,7 @@ function processBlobsTransformed(blobs) {
 				});
 			});
 		} else {
-			console.error('Maximum number of jobs set in IMPORTER_CONCURRENCY (', configCtr.IMPORTER_CONCURRENCY, ') exceeded, running containers:', impContainers);
+			console.error('Maximum number of jobs set in IMPORTER_CONCURRENCY (', config.IMPORTER_CONCURRENCY, ') exceeded, running containers:', impContainers);
 		}
 	});
 }
@@ -264,7 +261,7 @@ function dispatchImporter(profile) {
 		expect(profile.name).to.be.not.null;
 		expect(profile.blob).to.be.not.null;
 
-		const importer = _.cloneDeep(configCtr.importer);
+		const importer = _.cloneDeep(config.importer);
 		importer.Image = profile.import.image;
 		importer.Labels.blobID = profile.blob;
 		importer.Env = [

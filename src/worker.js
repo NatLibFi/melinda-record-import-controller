@@ -28,11 +28,9 @@
 
 'use strict';
 
-import {configurationGeneral as config} from '@natlibfi/melinda-record-import-commons';
-
 const Agenda = require('agenda');
 
-const configCtr = require('./config-controller');
+const config = require('./config-controller');
 
 const agenda = new Agenda(config.agendaMongo);
 
@@ -43,11 +41,11 @@ module.exports = function () {
 			require('./jobs/' + type)(agenda);
 		});
 
-		agenda.every(configCtr.workerFrequency.pending, config.enums.jobs.pollBlobsPending);
+		agenda.every(config.workerFrequency.pending, config.jobs.pollBlobsPending);
 
-		agenda.every(configCtr.workerFrequency.transformed, config.enums.jobs.pollBlobsTransformed);
+		agenda.every(config.workerFrequency.transformed, config.jobs.pollBlobsTransformed);
 
-		agenda.every(configCtr.workerFrequency.aborted, config.enums.jobs.pollBlobsAborted);
+		agenda.every(config.workerFrequency.aborted, config.jobs.pollBlobsAborted);
 
 		agenda.start();
 	});

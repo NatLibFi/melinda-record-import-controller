@@ -27,6 +27,21 @@
 */
 
 'use strict';
+
+// "Mandatory" environment variables
+exports.AMQP_URL = process.env.AMQP_URL || 'amqp://host:port';
+
+exports.urlAPI = process.env.URL_API || 'http://127.0.0.1:3000';
+
+exports.portController = process.env.PORT_CNTRL || 3001;
+
+exports.agendaMongo = {
+	db: {
+		address: process.env.MONGODB_URI || 'mongodb://generalAdmin:ToDoChangeAdmin@127.0.0.1:27017/melinda-record-import-api',
+		collection: 'jobs'
+	}
+};
+
 exports.workerFrequency = {
 	pending: process.env.WORK_PEND || '10 seconds',
 	transformed: process.env.WORK_TRANS || '10 seconds',
@@ -35,6 +50,49 @@ exports.workerFrequency = {
 
 exports.IMPORTER_CONCURRENCY = process.env.IMPORTER_CONCURRENCY || 10;
 
+// Logs or no logs
+exports.logs = process.env.DEBUG === 'true'; // Default: false
+
+// Some enumerations
+module.httpCodes = {
+	OK: 200,
+	Created: 201,
+	Accepted: 202,
+	NoContent: 204,
+	Updated: 204,
+	Malformed: 400,
+	BadRequest: 400,
+	Unauthorized: 401,
+	Forbidden: 403,
+	NotFound: 404,
+	MethodNotAllowed: 405,
+	Conflict: 409,
+	PayloadTooLarge: 413,
+	Unsupported: 415,
+	Teapot: 418,
+	ValidationError: 422,
+	InternalServerError: 500,
+	NotImplemented: 501,
+	BadGateway: 502,
+	ServiceUnavailable: 503
+};
+
+exports.blobStates = {
+	pending: 'PENDING_TRANSFORMATION',
+	inProgress: 'TRANSFORMATION_IN_PROGRESS',
+	failed: 'TRANSFORMATION_FAILED',
+	transformed: 'TRANSFORMED',
+	processed: 'PROCESSED',
+	aborted: 'ABORTED'
+};
+exports.jobs = {
+	pollBlobs: 'poll.GET./blobs/',
+	pollBlobsPending: 'poll.GET./blobs/.pending',
+	pollBlobsTransformed: 'poll.GET./blobs/.transformed',
+	pollBlobsAborted: 'poll.GET./blobs/.aborted'
+};
+
+// Base configurations for dockering
 exports.transformer = {
 	Image: '{profile.transformation.image}',
 	AttachStdout: true, // Used to read logs
