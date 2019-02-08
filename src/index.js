@@ -29,49 +29,25 @@
 'use strict';
 
 import {CommonUtils} from '@natlibfi/melinda-record-import-commons';
-import config from './config-controller';
-
-const express = require('express');
-const bodyParser = require('body-parser');
-const cors = require('cors');
 
 let MANDATORY_ENV_VARIABLES = [
 	'AMQP_URL',
 	'URL_API',
-	'PORT_CNTRL',
 	'MONGODB_URI',
 	'WORK_PEND',
 	'WORK_TRANS',
 	'WORK_ABORT',
-	'IMPORTER_CONCURRENCY',
-	'CROWD_USERNAME',
-	'CROWD_PASS'
+	'API_USERNAME',
+	'API_PASS'
 ];
 
 if (process.env.USE_DEF === 'true') {
 	MANDATORY_ENV_VARIABLES = [
-		'CROWD_USERNAME',
-		'CROWD_PASS'
+		'API_USERNAME',
+		'API_PASS'
 	];
 }
 
 CommonUtils.checkEnv(MANDATORY_ENV_VARIABLES); // Check that all values are set
 
-const app = express();
-app.config = config;
-app.use(cors());
-
-// Normal express config defaults
-app.use(require('morgan')('dev'));
-
-app.use(bodyParser.urlencoded({extended: false}));
-app.use(bodyParser.json());
-
 require('./worker')();
-
-// Mongoose.connect(app.config.mongodb.uri);
-
-// finally, let's start our server...
-const server = app.listen(app.config.portController, () => {
-	console.log('Server running at addres:', server.address(), 'using API:', app.config.urlAPI);
-});

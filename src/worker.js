@@ -35,20 +35,20 @@ const config = require('./config-controller');
 const agenda = new Agenda(config.agendaMongo);
 
 const jobTypes = ['dispatch']; // Get jobs from dispatch file from jobs folder
+
 module.exports = function () {
+	console.log('Starting');
 	agenda.on('ready', () => {
 		jobTypes.forEach(type => {
 			require('./jobs/' + type)(agenda);
 		});
 
-		agenda.every(config.workerFrequency.pending, config.jobs.pollBlobsPending);
+		agenda.every(config.workerFrequency.pending, config.enums.jobs.pollBlobsPending);
 
-		agenda.every(config.workerFrequency.transformed, config.jobs.pollBlobsTransformed);
+		agenda.every(config.workerFrequency.transformed, config.enums.jobs.pollBlobsTransformed);
 
-		agenda.every(config.workerFrequency.aborted, config.jobs.pollBlobsAborted);
+		agenda.every(config.workerFrequency.aborted, config.enums.jobs.pollBlobsAborted);
 
 		agenda.start();
 	});
 };
-
-module.exports = agenda;

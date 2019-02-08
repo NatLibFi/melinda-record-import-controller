@@ -27,6 +27,8 @@
 */
 
 'use strict';
+import {enums} from '@natlibfi/melinda-record-import-commons';
+exports.enums = enums;
 
 // "Mandatory" environment variables
 exports.AMQP_URL = process.env.AMQP_URL || 'amqp://host:port';
@@ -48,49 +50,10 @@ exports.workerFrequency = {
 	aborted: process.env.WORK_ABORT || '10 seconds'
 };
 
-exports.IMPORTER_CONCURRENCY = process.env.IMPORTER_CONCURRENCY || 10;
+exports.IMPORTER_CONCURRENCY = process.env.IMPORTER_CONCURRENCY || 1;
 
 // Logs or no logs
 exports.logs = process.env.DEBUG === 'true'; // Default: false
-
-// Some enumerations
-module.httpCodes = {
-	OK: 200,
-	Created: 201,
-	Accepted: 202,
-	NoContent: 204,
-	Updated: 204,
-	Malformed: 400,
-	BadRequest: 400,
-	Unauthorized: 401,
-	Forbidden: 403,
-	NotFound: 404,
-	MethodNotAllowed: 405,
-	Conflict: 409,
-	PayloadTooLarge: 413,
-	Unsupported: 415,
-	Teapot: 418,
-	ValidationError: 422,
-	InternalServerError: 500,
-	NotImplemented: 501,
-	BadGateway: 502,
-	ServiceUnavailable: 503
-};
-
-exports.blobStates = {
-	pending: 'PENDING_TRANSFORMATION',
-	inProgress: 'TRANSFORMATION_IN_PROGRESS',
-	failed: 'TRANSFORMATION_FAILED',
-	transformed: 'TRANSFORMED',
-	processed: 'PROCESSED',
-	aborted: 'ABORTED'
-};
-exports.jobs = {
-	pollBlobs: 'poll.GET./blobs/',
-	pollBlobsPending: 'poll.GET./blobs/.pending',
-	pollBlobsTransformed: 'poll.GET./blobs/.transformed',
-	pollBlobsAborted: 'poll.GET./blobs/.aborted'
-};
 
 // Base configurations for dockering
 exports.transformer = {

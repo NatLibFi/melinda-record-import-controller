@@ -30,46 +30,46 @@
 /* eslint no-unused-expressions: 0 max-nested-callbacks: 0 */
 'use strict';
 
-const {logs} = config;
-const {expect} = require('chai').expect;
+import {expect} from 'chai';
+
 const Docker = require('dockerode');
 const fetch = require('node-fetch');
 const _ = require('lodash');
 const config = require('../config-controller');
+const {logs} = config;
 
 const urlBlobs = config.urlAPI + '/blobs';
 const urlProfile = config.urlAPI + '/profiles/';
-const encodedAuth = 'Basic ' + Buffer.from(process.env.CROWD_USERNAME + ':' + process.env.CROWD_PASS).toString('base64');
-
+const encodedAuth = 'Basic ' + Buffer.from(process.env.API_USERNAME + ':' + process.env.API_PASS).toString('base64');
 const docker = new Docker();
 
 // ////////////////////////////////////////////////////////
 // Start: Defining jobs to be activated from worker
 module.exports = function (agenda) {
-	agenda.define(config.jobs.pollBlobsPending, (job, done) => {
-		fetch(urlBlobs + '?state=' + config.blobStates.pending, {headers: {Authorization: encodedAuth}})
+	agenda.define(config.enums.jobs.pollBlobsPending, (job, done) => {
+		fetch(urlBlobs + '?state=' + config.enums.blobStates.pending, {headers: {Authorization: encodedAuth}})
 			.then(res => {
-				expect(res.status).to.equal(config.httpCodes.OK);
+				expect(res.status).to.equal(config.enums.httpCodes.OK);
 				return res.json();
 			}).then(blobs => processBlobsPending(blobs))
 			.then(done())
 			.catch(error => console.error(error));
 	});
 
-	agenda.define(config.jobs.pollBlobsTransformed, (job, done) => {
-		fetch(urlBlobs + '?state=' + config.blobStates.transformed, {headers: {Authorization: encodedAuth}})
+	agenda.define(config.enums.jobs.pollBlobsTransformed, (job, done) => {
+		fetch(urlBlobs + '?state=' + config.enums.blobStates.transformed, {headers: {Authorization: encodedAuth}})
 			.then(res => {
-				expect(res.status).to.equal(config.httpCodes.OK);
+				expect(res.status).to.equal(config.enums.httpCodes.OK);
 				return res.json();
 			}).then(blobs => processBlobsTransformed(blobs))
 			.then(done())
 			.catch(error => console.error(error));
 	});
 
-	agenda.define(config.jobs.pollBlobsAborted, (job, done) => {
-		fetch(urlBlobs + '?state=' + config.blobStates.aborted, {headers: {Authorization: encodedAuth}})
+	agenda.define(config.enums.jobs.pollBlobsAborted, (job, done) => {
+		fetch(urlBlobs + '?state=' + config.enums.blobStates.aborted, {headers: {Authorization: encodedAuth}})
 			.then(res => {
-				expect(res.status).to.equal(config.httpCodes.OK);
+				expect(res.status).to.equal(config.enums.httpCodes.OK);
 				return res.json();
 			}).then(json => processBlobsAborted(json))
 			.then(done())
@@ -94,7 +94,7 @@ function processBlobsPending(blobs) {
 	_.forEach(blobs, urlBlob => {
 		// A: Get profile to be used for containers
 		const getProfilePromise = getBlobProfile(urlBlob);
-		getProfilePromise.then(profile => { // This is profile name
+		getProfilePromise.then(profile => { // This is profile
 			if (logs) {
 				console.log('Starting TRANSFORMATION container');
 			}
@@ -107,7 +107,7 @@ function processBlobsPending(blobs) {
 				}
 
 				// C: Update blob state trough API
-				const data = {state: config.blobStates.inProgress};
+				const data = {state: config.enums.blobStates.inProgress};
 				fetch(urlBlob, {
 					method: 'POST',
 					body: JSON.stringify(data),
@@ -118,7 +118,7 @@ function processBlobsPending(blobs) {
 					}
 				})
 					.then(res => {
-						expect(res.status).to.equal(config.httpCodes.Updated);
+						expect(res.status).to.equal(config.enums.httpCodes.Updated);
 						if (logs) {
 							console.log('Blob set to:', data);
 						}
@@ -137,9 +137,14 @@ function processBlobsPending(blobs) {
 
 function dispatchTransformer(profile) {
 	return new Promise((resolve, reject) => {
-		expect(profile.transformation.abortOnInvalidRecords).to.be.not.null;
-		expect(profile.name).to.be.not.null;
-		expect(profile.blob).to.be.not.null;
+		try {
+			expect(profile.transformation.abortOnInvalidRecords).to.exist;
+			expect(profile.transformation.image).to.exist;
+			expect(profile.name).to.exist;
+			expect(profile.blob).to.exist;
+		} catch (error) {
+			reject(error);
+		}
 
 		const transformer = _.cloneDeep(config.transformer);
 		transformer.Image = profile.transformation.image;
@@ -149,17 +154,22 @@ function dispatchTransformer(profile) {
 			'PROFILE_ID=' + profile.name,
 			'BLOB_ID=' + profile.blob,
 			'API_URL=' + config.urlAPI,
-			'API_USERNAME=' + process.env.CROWD_USERNAME,
-			'API_PASSWORD=' + process.env.CROWD_PASS,
+			'API_USERNAME=' + process.env.API_USERNAME,
+			'API_PASSWORD=' + process.env.API_PASS,
 			'AMQP_URL=' + config.AMQP_URL
 		];
 
+        //ToDo: starting seems to be so slow that container can be started multiple times between jobs (10s delay)
+        console.log("Starting transformer")
 		docker.createContainer(
 			transformer
 		).then(cont => {
 			return cont.start();
 		}).then(cont => {
-			console.log('Container started:', cont);
+			if (logs) {
+				console.log('Container started:', cont.id);
+			}
+
 			resolve(true);
 		}).catch(error => {
 			reject(error);
@@ -221,7 +231,7 @@ function processBlobsTransformed(blobs) {
 								}
 
 								// C: Update blob state trough API
-								const data = {state: config.blobStates.inProgress};
+								const data = {state: config.enums.blobStates.inProgress};
 								fetch(urlBlob, {
 									method: 'POST',
 									body: JSON.stringify(data),
@@ -231,7 +241,7 @@ function processBlobsTransformed(blobs) {
 										Accept: 'application/json'
 									}
 								}).then(res => {
-									expect(res.status).to.equal(config.httpCodes.Updated);
+									expect(res.status).to.equal(config.enums.httpCodes.Updated);
 									if (logs) {
 										console.log('Blob set to:', data);
 									}
@@ -257,9 +267,13 @@ function processBlobsTransformed(blobs) {
 
 function dispatchImporter(profile) {
 	return new Promise((resolve, reject) => {
-		expect(profile.transformation.abortOnInvalidRecords).to.be.not.null;
-		expect(profile.name).to.be.not.null;
-		expect(profile.blob).to.be.not.null;
+		try {
+			expect(profile.transformation.abortOnInvalidRecords).to.exist;
+			expect(profile.name).to.exist;
+			expect(profile.blob).to.exist;
+		} catch (error) {
+			reject(error);
+		}
 
 		const importer = _.cloneDeep(config.importer);
 		importer.Image = profile.import.image;
@@ -327,19 +341,23 @@ function processBlobsAborted(blobs) {
 // Start: Supporting functions
 function getBlobProfile(urlBlob) {
 	return new Promise((resolve, reject) => {
+        if (logs) {
+            console.log('Getting profile for:', urlBlob);
+        }
+
 		// Get Profilename from blob
 		fetch(urlBlob, {headers: {Authorization: encodedAuth}})
 			.then(res => {
-				expect(res.status).to.equal(config.httpCodes.OK);
+				expect(res.status).to.equal(config.enums.httpCodes.OK);
 				return res.json();
 			})
 			.then(json => {
-				expect(json).to.be.not.null;
+				expect(json).to.exist;
 				expect(json).to.be.an('object');
-				expect(json.profile).to.be.not.null;
+				expect(json.profile).to.exist;
 				expect(json.profile).to.be.an('string'); // This is used in following query
-				expect(json.UUID).to.be.not.null;
-				expect(json.UUID).to.be.an('string'); // This is used in following resolve
+				expect(json.id).to.exist;
+				expect(json.id).to.be.an('string'); // This is used in following resolve
 				return json;
 			})
 		// Get Profile with profilename (ID)
@@ -347,13 +365,13 @@ function getBlobProfile(urlBlob) {
 				const urlProfileLocal = urlProfile + blob.profile; // This is profile name
 				fetch(urlProfileLocal, {headers: {Authorization: encodedAuth}})
 					.then(res => {
-						expect(res.status).to.equal(config.httpCodes.OK);
+						expect(res.status).to.equal(config.enums.httpCodes.OK);
 						return res.json();
 					})
 					.then(profile => {
-						expect(profile).to.be.not.null;
+						expect(profile).to.exist;
 						expect(profile).to.be.an('object');
-						profile.blob = blob.UUID; // Append profile with blob ID
+						profile.blob = blob.id; // Append profile with blob ID
 						resolve(profile); // This is profile
 					})
 					.catch(error => reject(error));
