@@ -56,7 +56,7 @@ exports.IMPORTER_CONCURRENCY = process.env.IMPORTER_CONCURRENCY || 1;
 // Logs or no logs
 exports.logs = process.env.DEBUG === 'true'; // Default: false
 
-// Base configurations for dockering
+// Base configurations for dockering, {} values are replaced on dispatching
 exports.transformer = {
 	Image: '{profile.transformation.image}',
 	AttachStdout: true, // Used to read logs
@@ -66,11 +66,11 @@ exports.transformer = {
 	},
 	Env: [
 		'ABORT_ON_INVALID_RECORDS={profile.transformation.abortOnInvalidRecords}',
-		'PROFILE_ID={profile-id}',
-		'BLOB_ID={blob-id}*',
-		'API_URL={{API_URL}}',
-		'API_USERNAME={TRANSFORMER_API_USERNAME}',
-		'API_PASSWORD={TRANSFORMER_API_PASSWORD}',
+		'PROFILE_ID={profile.name}',
+		'BLOB_ID={profile.blob=blob.id}*',
+		'API_URL={{URL_API}}',
+		'API_USERNAME={{API_USERNAME}}',
+		'API_PASSWORD={{API_PASS}}',
 		'AMQP_URL={{AMQP_URL}}'
 	]
 	/*
@@ -91,11 +91,11 @@ exports.importer = {
 		blobID: null
 	},
 	Env: [
-		'PROFILE_ID={profile-id}',
-		'BLOB_ID={blob-id}',
-		'API_URL={{API_URL}}',
-		'API_USERNAME={TRANSFORMER_API_USERNAME}',
-		'API_PASSWORD={TRANSFORMER_API_PASSWORD}',
+		'PROFILE_ID={profile.name}',
+		'BLOB_ID={profile.blob=blob.id}',
+		'API_URL={{URL_API}}',
+		'API_USERNAME={{API_USERNAME}}',
+		'API_PASSWORD={{API_PASS}}',
 		'AMQP_URL={{AMQP_URL}}'
 	]/* ,
     Healthcheck: {
