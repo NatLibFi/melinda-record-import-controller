@@ -36,6 +36,7 @@ const Docker = require('dockerode');
 const fetch = require('node-fetch');
 const _ = require('lodash');
 const config = require('../config-controller');
+
 const {logs} = config;
 
 const urlBlobs = config.urlAPI + '/blobs';
@@ -46,7 +47,7 @@ const docker = new Docker();
 // ////////////////////////////////////////////////////////
 // Start: Defining jobs to be activated from worker
 module.exports = function (agenda) {
-	agenda.define(config.enums.jobs.pollBlobsPending, (job, done) => {
+	agenda.define(config.enums.jobs.pollBlobsPending, {concurrency: 1}, (job, done) => {
 		fetch(urlBlobs + '?state=' + config.enums.blobStates.pending, {headers: {Authorization: encodedAuth}})
 			.then(res => {
 				expect(res.status).to.equal(config.enums.httpCodes.OK);
@@ -84,7 +85,7 @@ module.exports = function (agenda) {
 // Blob state is PENDING_TRANSFORMATION - This is provided as blobs
 // a. Retrieve the profile specified in blob metadata: GET /profiles/{id}
 // b. Dispatch a transformer container according to the profile
-// c. Call POST /profiles/{id} with op=transformationStarted
+// c. Call POST /profiles/{id} with status={blobStates.inProgress}
 function processBlobsPending(blobs) {
 	if (logs) {
 		console.log('Pending blobs to Process:', blobs);
@@ -159,15 +160,13 @@ function dispatchTransformer(profile) {
 			'AMQP_URL=' + config.AMQP_URL
 		];
 
-        //ToDo: starting seems to be so slow that container can be started multiple times between jobs (10s delay)
-        console.log("Starting transformer")
 		docker.createContainer(
 			transformer
 		).then(cont => {
 			return cont.start();
 		}).then(cont => {
 			if (logs) {
-				console.log('Container started:', cont.id);
+				console.log('ID of started container:', cont.id);
 			}
 
 			resolve(true);
@@ -341,9 +340,9 @@ function processBlobsAborted(blobs) {
 // Start: Supporting functions
 function getBlobProfile(urlBlob) {
 	return new Promise((resolve, reject) => {
-        if (logs) {
-            console.log('Getting profile for:', urlBlob);
-        }
+		if (logs) {
+			console.log('Getting profile for:', urlBlob);
+		}
 
 		// Get Profilename from blob
 		fetch(urlBlob, {headers: {Authorization: encodedAuth}})

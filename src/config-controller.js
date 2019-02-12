@@ -28,6 +28,7 @@
 
 'use strict';
 import {enums} from '@natlibfi/melinda-record-import-commons';
+
 exports.enums = enums;
 
 // "Mandatory" environment variables

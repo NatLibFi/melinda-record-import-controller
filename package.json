@@ -48,7 +48,7 @@
     "babel-register": "^6.26.0",
     "babel-preset-env": "^1.7.0",
     "babel-plugin-istanbul": "^5.1.0",
-    "nodemon": "^1.18.9",
+    "nodemon": "^1.18.10",
     "codeclimate-test-reporter": "^0.5.1"
   },
   "xo": {
