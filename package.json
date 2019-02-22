@@ -34,6 +34,18 @@
     "travisci": "npm run check-and-build",
     "publish-to-npm": "npm install && npm run lint && npm test && npm run coverage && npm publish --access=public"
   },
+  "dependencies": {
+    "@natlibfi/melinda-record-import-commons": "file://../melinda-record-import-commons",
+    "agenda": "^2.0.2",
+    "body-parser": "^1.18.3",
+    "cors": "^2.8.5",
+    "dockerode": "^2.5.8",
+    "express": "^4.16.4",
+    "lodash": "^4.17.11",
+    "morgan": "^1.9.1",
+    "node-fetch": "^2.3.0",
+    "stream": "0.0.2"
+  },
   "devDependencies": {
     "npm-check-updates": "^2.15.0",
     "rimraf": "^2.6.3",
@@ -91,17 +103,5 @@
     "statements": 100,
     "functions": 100,
     "branches": 100
-  },
-  "dependencies": {
-    "@natlibfi/melinda-record-import-commons": "^1.7.0",
-    "agenda": "^2.0.2",
-    "body-parser": "^1.18.3",
-    "cors": "^2.8.5",
-    "dockerode": "^2.5.8",
-    "express": "^4.16.4",
-    "lodash": "^4.17.11",
-    "morgan": "^1.9.1",
-    "node-fetch": "^2.3.0",
-    "stream": "0.0.2"
   }
 }

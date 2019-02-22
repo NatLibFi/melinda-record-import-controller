@@ -27,9 +27,16 @@
 */
 
 'use strict';
-import {enums} from '@natlibfi/melinda-record-import-commons';
+import * as commons from '@natlibfi/melinda-record-import-commons';
 
-exports.enums = enums;
+exports.enums = {
+	ENVIRONMENT: commons.ENVIRONMENT, // Not used
+	BLOB_STATE: commons.BLOB_STATE,
+	RECORD_IMPORT_STATE: commons.RECORD_IMPORT_STATE, // Not used
+	HTTP_CODES: commons.HTTP_CODES,
+	ERROR_TYPES: commons.ERROR_TYPES, // Not used
+	JOBS: commons.JOBS
+};
 
 // "Mandatory" environment variables
 exports.AMQP_URL = process.env.AMQP_URL || 'amqp://host:port';
@@ -72,16 +79,18 @@ exports.transformer = {
 		'API_USERNAME={{API_USERNAME}}',
 		'API_PASSWORD={{API_PASS}}',
 		'AMQP_URL={{AMQP_URL}}'
-	]
-	/*
-    Healthcheck: {
-        'Test': ['CMD', 'curl -s localhost:8080/healthz'],
-        'Interval': 300,
-        'Timeout': 10,
-        'Retries': '3'
-    }
-    */
+	],
+	Healthcheck: {
+		Test: ['CMD-SHELL', 'curl -s localhost:8080/healthz'],
+		Interval: 30000000000,
+		Timeout: 10000000000,
+		Retries: 3
+	}
 };
+
+// Alternative way to do healthchecking:
+// Test: ['CMD-SHELL', 'node dist/health-check.js'],
+// https://blog.sixeyed.com/docker-healthchecks-why-not-to-use-curl-or-iwr/
 
 exports.importer = {
 	Image: '{profile.import.image}',
@@ -97,11 +106,11 @@ exports.importer = {
 		'API_USERNAME={{API_USERNAME}}',
 		'API_PASSWORD={{API_PASS}}',
 		'AMQP_URL={{AMQP_URL}}'
-	]/* ,
-    Healthcheck: {
-        'Test': ['CMD', 'curl -s localhost:8080/healthz'],
-        'Interval': '30000000000',
-        'Timeout': '10000000000',
-        'Retries': '3'
-    } */
+	],
+	Healthcheck: {
+		Test: ['CMD-SHELL', 'curl -s localhost:8080/healthz'],
+		Interval: 30000000000,
+		Timeout: 10000000000,
+		Retries: 3
+	}
 };

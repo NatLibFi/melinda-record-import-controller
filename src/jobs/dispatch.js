@@ -47,30 +47,33 @@ const docker = new Docker();
 // ////////////////////////////////////////////////////////
 // Start: Defining jobs to be activated from worker
 module.exports = function (agenda) {
-	agenda.define(config.enums.jobs.pollBlobsPending, {concurrency: 1}, (job, done) => {
-		fetch(urlBlobs + '?state=' + config.enums.blobStates.pending, {headers: {Authorization: encodedAuth}})
+	agenda.define(config.enums.JOBS.pollBlobsPending, {concurrency: 1}, (job, done) => {
+		fetch(urlBlobs + '?state=' + config.enums.BLOB_STATE.pending, {headers: {Authorization: encodedAuth}})
 			.then(res => {
-				expect(res.status).to.equal(config.enums.httpCodes.OK);
+				expect(res.status).to.equal(config.enums.HTTP_CODES.OK);
 				return res.json();
 			}).then(blobs => processBlobsPending(blobs))
-			.then(done())
+			.then(() => {
+				console.log('Pending done');
+				done();
+			})
 			.catch(error => console.error(error));
 	});
 
-	agenda.define(config.enums.jobs.pollBlobsTransformed, (job, done) => {
-		fetch(urlBlobs + '?state=' + config.enums.blobStates.transformed, {headers: {Authorization: encodedAuth}})
+	agenda.define(config.enums.JOBS.pollBlobsTransformed, (job, done) => {
+		fetch(urlBlobs + '?state=' + config.enums.BLOB_STATE.transformed, {headers: {Authorization: encodedAuth}})
 			.then(res => {
-				expect(res.status).to.equal(config.enums.httpCodes.OK);
+				expect(res.status).to.equal(config.enums.HTTP_CODES.OK);
 				return res.json();
 			}).then(blobs => processBlobsTransformed(blobs))
 			.then(done())
 			.catch(error => console.error(error));
 	});
 
-	agenda.define(config.enums.jobs.pollBlobsAborted, (job, done) => {
-		fetch(urlBlobs + '?state=' + config.enums.blobStates.aborted, {headers: {Authorization: encodedAuth}})
+	agenda.define(config.enums.JOBS.pollBlobsAborted, (job, done) => {
+		fetch(urlBlobs + '?state=' + config.enums.BLOB_STATE.aborted, {headers: {Authorization: encodedAuth}})
 			.then(res => {
-				expect(res.status).to.equal(config.enums.httpCodes.OK);
+				expect(res.status).to.equal(config.enums.HTTP_CODES.OK);
 				return res.json();
 			}).then(json => processBlobsAborted(json))
 			.then(done())
@@ -91,6 +94,37 @@ function processBlobsPending(blobs) {
 		console.log('Pending blobs to Process:', blobs);
 	}
 
+	// { Id: 'c93a249b02696255caf13e2fabbdeb7f643fd054fd58c6d64e3a5eadfa3e0fd7',
+	// Names: [ '/dreamy_euclid' ],
+	// Image: 'melinda-transformer',
+	// ImageID: 'sha256:d86ceb53ef10172a6ead47348b0925a0025095dad7ed9daa907bb9d774913355',
+	// Command: '/usr/local/bin/node index.js',
+	// Created: 1549714179,
+	// Ports: [],
+	// Labels:
+	//  { blobID: '1001',
+	//    'fi.nationallibrary.melinda.record-import.container-type': 'transform-task' },
+	// State: 'exited',
+	// Status: 'Exited (1) 5 days ago',
+	// HostConfig: { NetworkMode: 'default' },
+	// NetworkSettings: { Networks: [Object] },
+	// Mounts: [] }
+
+	// Labels:
+	// { blobID: '1001',
+	//   'fi.nationallibrary.melinda.record-import.container-type': 'transform-task' },
+
+	// filters: '{"label": ["fi.nationallibrary.melinda.record-import.container-type=import-task"]}'
+
+	// docker.listContainers({filters: '{"label": ["fi.nationallibrary.melinda.record-import.container-type=transform-task"]}'}, (error, impContainers) => {
+	// filters: '{"label": ["fi.nationallibrary.melinda.record-import.container-type=import-task"]}'
+	docker.listContainers({all: true}, (error, impContainers) => {
+		if (logs) {
+			console.log('Transform containers:', impContainers);
+		}
+	});
+
+	console.log('Cycling');
 	// Cycle trough each found blob
 	_.forEach(blobs, urlBlob => {
 		// A: Get profile to be used for containers
@@ -108,7 +142,7 @@ function processBlobsPending(blobs) {
 				}
 
 				// C: Update blob state trough API
-				const data = {state: config.enums.blobStates.inProgress};
+				const data = {state: config.enums.BLOB_STATE.inProgress};
 				fetch(urlBlob, {
 					method: 'POST',
 					body: JSON.stringify(data),
@@ -119,7 +153,7 @@ function processBlobsPending(blobs) {
 					}
 				})
 					.then(res => {
-						expect(res.status).to.equal(config.enums.httpCodes.Updated);
+						expect(res.status).to.equal(config.enums.HTTP_CODES.Updated);
 						if (logs) {
 							console.log('Blob set to:', data);
 						}
@@ -134,6 +168,7 @@ function processBlobsPending(blobs) {
 			console.error(error);
 		});
 	});
+	console.log('End?');
 }
 
 function dispatchTransformer(profile) {
@@ -159,15 +194,21 @@ function dispatchTransformer(profile) {
 			'API_PASSWORD=' + process.env.API_PASS,
 			'AMQP_URL=' + config.AMQP_URL
 		];
-
+		console.log(transformer)
+		console.log('----- create cont ---------');
 		docker.createContainer(
 			transformer
 		).then(cont => {
+			console.log('----- starting cont ---------');
 			return cont.start();
 		}).then(cont => {
 			if (logs) {
 				console.log('ID of started container:', cont.id);
 			}
+
+			setTimeout(() => {
+				containerLogs(cont);
+			}, 3000);
 
 			resolve(true);
 		}).catch(error => {
@@ -195,6 +236,7 @@ function processBlobsTransformed(blobs) {
 
 	docker.listContainers(searchOptsImporters, (error, impContainers) => {
 		if (logs) {
+			console.log(impContainers);
 			console.log('Running import containers:', impContainers.length, 'maximum:', config.IMPORTER_CONCURRENCY);
 		}
 
@@ -230,7 +272,7 @@ function processBlobsTransformed(blobs) {
 								}
 
 								// C: Update blob state trough API
-								const data = {state: config.enums.blobStates.inProgress};
+								const data = {state: config.enums.BLOB_STATE.inProgress};
 								fetch(urlBlob, {
 									method: 'POST',
 									body: JSON.stringify(data),
@@ -240,7 +282,7 @@ function processBlobsTransformed(blobs) {
 										Accept: 'application/json'
 									}
 								}).then(res => {
-									expect(res.status).to.equal(config.enums.httpCodes.Updated);
+									expect(res.status).to.equal(config.enums.HTTP_CODES.Updated);
 									if (logs) {
 										console.log('Blob set to:', data);
 									}
@@ -347,7 +389,7 @@ function getBlobProfile(urlBlob) {
 		// Get Profilename from blob
 		fetch(urlBlob, {headers: {Authorization: encodedAuth}})
 			.then(res => {
-				expect(res.status).to.equal(config.enums.httpCodes.OK);
+				expect(res.status).to.equal(config.enums.HTTP_CODES.OK);
 				return res.json();
 			})
 			.then(json => {
@@ -364,7 +406,7 @@ function getBlobProfile(urlBlob) {
 				const urlProfileLocal = urlProfile + blob.profile; // This is profile name
 				fetch(urlProfileLocal, {headers: {Authorization: encodedAuth}})
 					.then(res => {
-						expect(res.status).to.equal(config.enums.httpCodes.OK);
+						expect(res.status).to.equal(config.enums.HTTP_CODES.OK);
 						return res.json();
 					})
 					.then(profile => {
@@ -402,34 +444,36 @@ function getBlobProfile(urlBlob) {
 // }
 
 // This is used to read logs from running containers, not used ATM
-// function containerLogs(container) {
-//  const stream = require('stream');
-// 	if (container) {
-//         // Create a single stream for stdin and stdout
-// 		const logStream = new stream.PassThrough();
-// 		logStream.on('data', chunk => {
-// 			console.log(chunk.toString('utf8'));
-// 		});
+function containerLogs(container) {
+	const stream = require('stream');
+	if (container) {
+		// Create a single stream for stdin and stdout
+		const logStream = new stream.PassThrough();
+		logStream.on('data', chunk => {
+			console.log(chunk.toString('utf8'));
+		});
 
-// 		container.logs({
-// 			follow: true,
-// 			stdout: true,
-// 			stderr: true
-// 		}, (error, stream) => {
-// 			if (error) {
-// 				return logger.error(error.message);
-// 			}
-// 			container.modem.demuxStream(stream, logStream, logStream);
-// 			stream.on('end', () => {
-// 				logStream.end('!Stream end');
-// 			});
+		container.logs({
+			follow: true,
+			stdout: true,
+			stderr: true
+		}, (error, stream) => {
+			if (error) {
+				console.error(error.message);
+				// Return logger.error(error.message);
+			}
 
-// 			setTimeout(() => {
-// 				stream.destroy();
-// 			}, 2000);
-// 		});
-// 	}
-// }
+			container.modem.demuxStream(stream, logStream, logStream);
+			stream.on('end', () => {
+				logStream.end('!Stream end');
+			});
+
+			setTimeout(() => {
+				stream.destroy();
+			}, 2000);
+		});
+	}
+}
 // End: Supporting functions
 // ////////////////////////////////////////////////////////
 

@@ -28,7 +28,7 @@
 
 'use strict';
 
-import {CommonUtils} from '@natlibfi/melinda-record-import-commons';
+import {checkEnv} from '@natlibfi/melinda-record-import-commons';
 
 let MANDATORY_ENV_VARIABLES = [
 	'AMQP_URL',
@@ -48,6 +48,6 @@ if (process.env.USE_DEF === 'true') {
 	];
 }
 
-CommonUtils.checkEnv(MANDATORY_ENV_VARIABLES); // Check that all values are set
+checkEnv(MANDATORY_ENV_VARIABLES); // Check that all values are set
 
 require('./worker')();
