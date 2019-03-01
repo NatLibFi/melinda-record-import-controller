@@ -43,11 +43,13 @@ module.exports = function () {
 			require('./jobs/' + type)(agenda);
 		});
 
-		agenda.schedule(config.workerFrequency.pending, config.enums.JOBS.pollBlobsPending);
+		agenda.every(config.workerFrequency.pending, config.enums.JOBS.pollBlobsPending);
 
-		// Agenda.schedule(config.workerFrequency.transformed, config.enums.JOBS.pollBlobsTransformed);
+		agenda.every(config.workerFrequency.transformed, config.enums.JOBS.pollBlobsTransformed);
 
-		// agenda.schedule(config.workerFrequency.aborted, config.enums.JOBS.pollBlobsAborted);
+		agenda.every(config.workerFrequency.aborted, config.enums.JOBS.pollBlobsAborted);
+
+		agenda.every(config.workerFrequency.health, config.enums.JOBS.checkContainerHealth);
 
 		agenda.start();
 	});

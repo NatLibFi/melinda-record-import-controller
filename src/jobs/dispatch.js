@@ -52,21 +52,27 @@ module.exports = function (agenda) {
 			.then(res => {
 				expect(res.status).to.equal(config.enums.HTTP_CODES.OK);
 				return res.json();
-			}).then(blobs => processBlobsPending(blobs))
-			.then(() => {
-				console.log('Pending done');
-				done();
-			})
+			}).then(blobs => processBlobsPending(blobs, done))
 			.catch(error => console.error(error));
 	});
 
 	agenda.define(config.enums.JOBS.pollBlobsTransformed, (job, done) => {
+		// Check fist blobs that are set to transformed, if containers are started
 		fetch(urlBlobs + '?state=' + config.enums.BLOB_STATE.transformed, {headers: {Authorization: encodedAuth}})
 			.then(res => {
 				expect(res.status).to.equal(config.enums.HTTP_CODES.OK);
 				return res.json();
-			}).then(blobs => processBlobsTransformed(blobs))
-			.then(done())
+			}).then(blobs => processBlobsImport(blobs, config.enums.BLOB_STATE.transformed, null))
+			.then(() => {
+				// Check if there are started containers that do not exceed
+				fetch(urlBlobs + '?state=' + config.enums.BLOB_STATE.inProgress, {headers: {Authorization: encodedAuth}})
+					.then(res => {
+						expect(res.status).to.equal(config.enums.HTTP_CODES.OK);
+						return res.json();
+					})
+					.then(blobs => processBlobsImport(blobs, config.enums.BLOB_STATE.inProgress, done))
+					.catch(error => console.error(error));
+			})
 			.catch(error => console.error(error));
 	});
 
@@ -75,9 +81,18 @@ module.exports = function (agenda) {
 			.then(res => {
 				expect(res.status).to.equal(config.enums.HTTP_CODES.OK);
 				return res.json();
-			}).then(json => processBlobsAborted(json))
-			.then(done())
+			})
+			.then(json => processBlobsAborted(json, done))
 			.catch(error => console.error(error));
+	});
+
+	agenda.define(config.enums.JOBS.checkContainerHealth, (job, done) => {
+		const healthcheckPromise = checkHealthy();
+		healthcheckPromise.then(() => {
+			done();
+		}).catch(error => {
+			console.error(error);
+		});
 	});
 };
 // Start: Defining jobs to be activated from worker
@@ -89,86 +104,58 @@ module.exports = function (agenda) {
 // a. Retrieve the profile specified in blob metadata: GET /profiles/{id}
 // b. Dispatch a transformer container according to the profile
 // c. Call POST /profiles/{id} with status={blobStates.inProgress}
-function processBlobsPending(blobs) {
+function processBlobsPending(blobs, done) {
 	if (logs) {
 		console.log('Pending blobs to Process:', blobs);
 	}
 
-	// { Id: 'c93a249b02696255caf13e2fabbdeb7f643fd054fd58c6d64e3a5eadfa3e0fd7',
-	// Names: [ '/dreamy_euclid' ],
-	// Image: 'melinda-transformer',
-	// ImageID: 'sha256:d86ceb53ef10172a6ead47348b0925a0025095dad7ed9daa907bb9d774913355',
-	// Command: '/usr/local/bin/node index.js',
-	// Created: 1549714179,
-	// Ports: [],
-	// Labels:
-	//  { blobID: '1001',
-	//    'fi.nationallibrary.melinda.record-import.container-type': 'transform-task' },
-	// State: 'exited',
-	// Status: 'Exited (1) 5 days ago',
-	// HostConfig: { NetworkMode: 'default' },
-	// NetworkSettings: { Networks: [Object] },
-	// Mounts: [] }
-
-	// Labels:
-	// { blobID: '1001',
-	//   'fi.nationallibrary.melinda.record-import.container-type': 'transform-task' },
-
-	// filters: '{"label": ["fi.nationallibrary.melinda.record-import.container-type=import-task"]}'
-
-	// docker.listContainers({filters: '{"label": ["fi.nationallibrary.melinda.record-import.container-type=transform-task"]}'}, (error, impContainers) => {
-	// filters: '{"label": ["fi.nationallibrary.melinda.record-import.container-type=import-task"]}'
-	docker.listContainers({all: true}, (error, impContainers) => {
-		if (logs) {
-			console.log('Transform containers:', impContainers);
-		}
-	});
-
-	console.log('Cycling');
 	// Cycle trough each found blob
-	_.forEach(blobs, urlBlob => {
-		// A: Get profile to be used for containers
-		const getProfilePromise = getBlobProfile(urlBlob);
-		getProfilePromise.then(profile => { // This is profile
-			if (logs) {
-				console.log('Starting TRANSFORMATION container');
-			}
-
-			// B: Dispatch transformer container
-			const dispatchTransformerPromise = dispatchTransformer(profile);
-			dispatchTransformerPromise.then(result => {
+	const blobStartups = blobs.map(urlBlob => {
+		return new Promise(resolve => {
+			// A: Get profile to be used for containers
+			const getProfilePromise = getBlobProfile(urlBlob);
+			getProfilePromise.then(profile => { // This is profile
 				if (logs) {
-					console.log('Starting TRANSFORMATION container end, success:', result);
+					console.log('Starting TRANSFORMATION container');
 				}
 
-				// C: Update blob state trough API
-				const data = {state: config.enums.BLOB_STATE.inProgress};
-				fetch(urlBlob, {
-					method: 'POST',
-					body: JSON.stringify(data),
-					headers: {
-						Authorization: encodedAuth,
-						'Content-Type': 'application/json',
-						Accept: 'application/json'
+				// B: Dispatch transformer container
+				const dispatchTransformerPromise = dispatchTransformer(profile);
+				dispatchTransformerPromise.then(result => {
+					if (logs) {
+						console.log('Starting TRANSFORMATION container end, success:', result);
 					}
-				})
+
+					// C: Update blob state trough API
+					const data = {state: config.enums.BLOB_STATE.inProgress};
+					fetch(urlBlob, {
+						method: 'POST',
+						body: JSON.stringify(data),
+						headers: {
+							Authorization: encodedAuth,
+							'Content-Type': 'application/json',
+							Accept: 'application/json'
+						}
+					})
 					.then(res => {
 						expect(res.status).to.equal(config.enums.HTTP_CODES.Updated);
 						if (logs) {
 							console.log('Blob set to:', data);
 						}
+						resolve();
 					})
 					.catch(error => {
 						console.error(error);
 					});
+				}).catch(error => {
+					console.error(error);
+				});
 			}).catch(error => {
 				console.error(error);
 			});
-		}).catch(error => {
-			console.error(error);
 		});
 	});
-	console.log('End?');
+	Promise.all(blobStartups).then(() => done());
 }
 
 function dispatchTransformer(profile) {
@@ -194,22 +181,14 @@ function dispatchTransformer(profile) {
 			'API_PASSWORD=' + process.env.API_PASS,
 			'AMQP_URL=' + config.AMQP_URL
 		];
-		console.log(transformer)
-		console.log('----- create cont ---------');
 		docker.createContainer(
 			transformer
 		).then(cont => {
-			console.log('----- starting cont ---------');
 			return cont.start();
 		}).then(cont => {
 			if (logs) {
-				console.log('ID of started container:', cont.id);
+				console.log('ID of started TRANSFORMATION container:', cont.id);
 			}
-
-			setTimeout(() => {
-				containerLogs(cont);
-			}, 3000);
-
 			resolve(true);
 		}).catch(error => {
 			reject(error);
@@ -225,39 +204,68 @@ function dispatchTransformer(profile) {
 // a. If the are no running importer containers for the blob, retrieve the profile specified in blob metadata: GET /profiles/{id}
 // b. Dispatch importer containers according to the profile. The maximum number of containers to dispatch is specified by environment variable IMPORTER_CONCURRENCY
 // c. Call POST /blobs/{id} with op=TRANSFORMATION_IN_PROGRESS
-function processBlobsTransformed(blobs) {
+function processBlobsImport(blobs, state, done) {
 	if (logs) {
-		console.log('Transformed blobs to Process:', blobs);
+		console.log(state, 'blobs to Process:', blobs);
 	}
 
 	const searchOptsImporters = {
 		filters: '{"label": ["fi.nationallibrary.melinda.record-import.container-type=import-task"]}'
 	};
 
-	docker.listContainers(searchOptsImporters, (error, impContainers) => {
+	// Check total amout of containers
+	docker.listContainers(searchOptsImporters, (err, impContainers) => {
+		const canStartCount = config.CONTAINERS_CONCURRENCY - impContainers.length;
 		if (logs) {
-			console.log(impContainers);
-			console.log('Running import containers:', impContainers.length, 'maximum:', config.IMPORTER_CONCURRENCY);
+			console.log('Running import containers:', impContainers.length, ', maximum:', config.CONTAINERS_CONCURRENCY, ', can start:', canStartCount);
 		}
 
-		if (error) {
-			console.error(error);
+		if (err) {
+			console.error(err);
 		}
 
-		if (impContainers.length < config.IMPORTER_CONCURRENCY) {
+		// Check that global concurrency limit is not exceeded
+		if (impContainers.length < config.CONTAINERS_CONCURRENCY) {
 			// Cycle trough each found blob
-			_.forEach(blobs, urlBlob => {
-				const searchOptsSingle = {
-					filters: '{"label": ["fi.nationallibrary.melinda.record-import.container-type=import-task", "blobID=' + urlBlob.slice(urlBlob.lastIndexOf('/blobs/') + 7) + '"]}' // Slice should be ID, but...
-				};
+			const goTroughEachBlobPromise = startContainerForEach(blobs, canStartCount);
+			goTroughEachBlobPromise.then(() => {
+				callDone(done);
+			}).catch(error => {
+				console.error(error);
+			});
+		} else {
+			console.error('Maximum number of jobs set in CONTAINERS_CONCURRENCY (', config.CONTAINERS_CONCURRENCY, ') exceeded, running containers:', impContainers);
+			callDone(done);
+		}
+	});
+}
 
-				// A: If the are no running importer containers, get profile to be used for containers
+function callDone(done) {
+	if (done !== null) {
+		done();
+	}
+}
+
+function startContainerForEach(blobs, canStartCount) {
+	return new Promise((resolve, reject) => {
+		const blobStartups = blobs.map(urlBlob => {
+			const searchOptsSingle = {
+				filters: '{"label": ["fi.nationallibrary.melinda.record-import.container-type=import-task", "blobID=' + urlBlob.slice(urlBlob.lastIndexOf('/blobs/') + 7) + '"]}' // Slice should be ID, but...
+			};
+
+			return new Promise(resolve => {
+			// A: If the are no running importer containers, get profile to be used for containers
 				docker.listContainers(searchOptsSingle, (error, containers) => {
 					if (error) {
-						console.error(error);
+						reject(error);
 					}
 
-					if (containers.length === 0) {
+					if (logs) {
+						console.log('Running import containers for blob:', containers.length, ', maximum:', config.IMPORTER_CONCURRENCY);
+					}
+
+					if (containers.length < config.IMPORTER_CONCURRENCY && canStartCount > 0) {
+						canStartCount--;
 						const getProfilePromise = getBlobProfile(urlBlob);
 						getProfilePromise.then(profile => {
 							if (logs) {
@@ -268,7 +276,7 @@ function processBlobsTransformed(blobs) {
 							const dispatchImporterPromise = dispatchImporter(profile);
 							dispatchImporterPromise.then(result => {
 								if (logs) {
-									console.log('Starting container end, success:', result);
+									console.log('Starting IMPORT container end, success:', result);
 								}
 
 								// C: Update blob state trough API
@@ -286,23 +294,25 @@ function processBlobsTransformed(blobs) {
 									if (logs) {
 										console.log('Blob set to:', data);
 									}
+
+									resolve();
 								}).catch(error => {
-									console.error(error);
+									reject(error);
 								});
 							}).catch(error => {
-								console.error(error);
+								reject(error);
 							});
 						}).catch(error => {
-							console.error(error);
+							reject(error);
 						});
 					} else {
-						console.error('There is already container running for blob:', urlBlob);
+						console.info('There is already maximum number (', config.IMPORTER_CONCURRENCY, ') of containers running for blob:', urlBlob, 'or total maximum number reached');
+						resolve();
 					}
 				});
 			});
-		} else {
-			console.error('Maximum number of jobs set in IMPORTER_CONCURRENCY (', config.IMPORTER_CONCURRENCY, ') exceeded, running containers:', impContainers);
-		}
+		});
+		Promise.all(blobStartups).then(() => resolve());
 	});
 }
 
@@ -332,8 +342,10 @@ function dispatchImporter(profile) {
 			importer
 		).then(cont => {
 			return cont.start();
-		}).then(cont => {
-			console.log('Container started:', cont);
+		}).then((cont) => {
+			if (logs) {
+				console.log('ID of started IMPORT container:', cont.id);
+			}
 			resolve(true);
 		}).catch(error => {
 			reject(error);
@@ -347,35 +359,72 @@ function dispatchImporter(profile) {
 // Start: Subfunctions for Aborted blobs
 // Blob state is ABORTED
 // a. Terminate any importer containers for the blob
-function processBlobsAborted(blobs) {
+function processBlobsAborted(blobs, done) {
 	if (logs) {
 		console.log('Aborted blobs to process:', blobs);
 	}
 
-	_.forEach(blobs, urlBlob => {
-		const searchOpts = {
-			filters: '{"label": ["fi.nationallibrary.melinda.record-import.container-type=import-task", "blobID=' + urlBlob.slice(urlBlob.lastIndexOf('/blobs/') + 7) + '"]}' // Slice should be ID, but...
-		};
+	const blobAbort = blobs.map(urlBlob => {
+		return new Promise(resolve => {
+		
+			const searchOpts = {
+				filters: '{"label": ["fi.nationallibrary.melinda.record-import.container-type=import-task", "blobID=' + urlBlob.slice(urlBlob.lastIndexOf('/blobs/') + 7) + '"]}' // Slice should be ID, but...
+			};
 
-		// A: Terminate any importer containers for the blob
-		docker.listContainers(searchOpts, (error, container) => {
-			if (error) {
-				console.error(error);
+			// A: Terminate any importer containers for the blob
+			docker.listContainers(searchOpts, (error, container) => {
+				if (error) {
+					console.error(error);
+				}
+
+				if (container.length === 1) {
+					docker.getContainer(container[0].Id).stop(() => {
+						if (logs) {
+							console.log('Container stopped');
+						}
+						resolve();
+					});
+				} else if (logs) {
+					console.log('Blob (', urlBlob, ') set as aborted; but found', container.length, 'matching containers.');
+				}
+			});
+		});
+	});
+	Promise.all(blobAbort).then(() => done());
+}
+// End: Subfunctions for Aborted blobs
+// ////////////////////////////////////////////////////////
+
+// ////////////////////////////////////////////////////////
+// Start: Subfunctions for unhelthy containers
+//  i. Terminate containers for which a health check fails.
+// ii. Raise an alert about the termination
+function checkHealthy() {
+	return new Promise((resolve, reject) => {
+		docker.listContainers({filters: {health: ['unhealthy']}}, (err, containers) => {
+			if (err) {
+				reject(err);
 			}
 
-			if (container.length === 1) {
-				docker.getContainer(container[0].Id).stop(() => {
-					if (logs) {
-						console.log('Container stopped');
-					}
+			if(containers === null){
+				resolve();
+			}else{
+				// Shut down unhealty containers
+				const requests = containers.map(containerInfo => {
+					return new Promise(resolve => {
+						docker.getContainer(containerInfo.Id).stop(() => {
+							console.error('Closed container:', containerInfo.Id);
+							resolve();
+						});
+					});
 				});
-			} else if (logs) {
-				console.log('Blob (', urlBlob, ') set as aborted; but found', container.length, 'matching containers.');
+
+				Promise.all(requests).then(() => resolve()).catch(error => reject(error));
 			}
 		});
 	});
 }
-// End: Subfunctions for Aborted blobs
+// Start: Subfunctions for unhelty containers
 // ////////////////////////////////////////////////////////
 
 // ////////////////////////////////////////////////////////
@@ -444,36 +493,36 @@ function getBlobProfile(urlBlob) {
 // }
 
 // This is used to read logs from running containers, not used ATM
-function containerLogs(container) {
-	const stream = require('stream');
-	if (container) {
-		// Create a single stream for stdin and stdout
-		const logStream = new stream.PassThrough();
-		logStream.on('data', chunk => {
-			console.log(chunk.toString('utf8'));
-		});
+// function containerLogs(container) {
+// 	const stream = require('stream');
+// 	if (container) {
+// 		// Create a single stream for stdin and stdout
+// 		const logStream = new stream.PassThrough();
+// 		logStream.on('data', chunk => {
+// 			console.log(chunk.toString('utf8'));
+// 		});
 
-		container.logs({
-			follow: true,
-			stdout: true,
-			stderr: true
-		}, (error, stream) => {
-			if (error) {
-				console.error(error.message);
-				// Return logger.error(error.message);
-			}
+// 		container.logs({
+// 			follow: true,
+// 			stdout: true,
+// 			stderr: true
+// 		}, (error, stream) => {
+// 			if (error) {
+// 				console.error(error.message);
+// 				// Return logger.error(error.message);
+// 			}
 
-			container.modem.demuxStream(stream, logStream, logStream);
-			stream.on('end', () => {
-				logStream.end('!Stream end');
-			});
+// 			container.modem.demuxStream(stream, logStream, logStream);
+// 			stream.on('end', () => {
+// 				logStream.end('!Stream end');
+// 			});
 
-			setTimeout(() => {
-				stream.destroy();
-			}, 2000);
-		});
-	}
-}
+// 			setTimeout(() => {
+// 				stream.destroy();
+// 			}, 2000);
+// 		});
+// 	}
+// }
 // End: Supporting functions
 // ////////////////////////////////////////////////////////
 

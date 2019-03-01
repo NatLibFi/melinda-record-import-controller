@@ -35,7 +35,7 @@
     "publish-to-npm": "npm install && npm run lint && npm test && npm run coverage && npm publish --access=public"
   },
   "dependencies": {
-    "@natlibfi/melinda-record-import-commons": "file://../melinda-record-import-commons",
+    "@natlibfi/melinda-record-import-commons": "^2.0.1",
     "agenda": "^2.0.2",
     "body-parser": "^1.18.3",
     "cors": "^2.8.5",

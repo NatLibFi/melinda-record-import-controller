@@ -55,10 +55,12 @@ exports.agendaMongo = {
 exports.workerFrequency = {
 	pending: process.env.WORK_PEND || '10 seconds',
 	transformed: process.env.WORK_TRANS || '10 seconds',
-	aborted: process.env.WORK_ABORT || '10 seconds'
+	aborted: process.env.WORK_ABORT || '10 seconds',
+	health: process.env.HEALTH || '10 seconds'
 };
 
 exports.IMPORTER_CONCURRENCY = process.env.IMPORTER_CONCURRENCY || 1;
+exports.CONTAINERS_CONCURRENCY = process.env.CONTAINERS_CONCURRENCY || 10;
 
 // Logs or no logs
 exports.logs = process.env.DEBUG === 'true'; // Default: false
