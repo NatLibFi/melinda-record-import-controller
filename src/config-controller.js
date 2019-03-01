@@ -27,9 +27,11 @@
 */
 
 'use strict';
-import {enums} from '@natlibfi/melinda-record-import-commons';
+import {JOBS, BLOB_STATE, HTTP_CODES} from '@natlibfi/melinda-record-import-commons';
 
-exports.enums = enums;
+exports.JOBS = JOBS;
+exports.HTTP_CODES = HTTP_CODES;
+exports.BLOB_STATE = BLOB_STATE;
 
 // "Mandatory" environment variables
 exports.AMQP_URL = process.env.AMQP_URL || 'amqp://host:port';

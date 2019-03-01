@@ -47,30 +47,31 @@ const docker = new Docker();
 // ////////////////////////////////////////////////////////
 // Start: Defining jobs to be activated from worker
 module.exports = function (agenda) {
-	agenda.define(config.enums.jobs.pollBlobsPending, {concurrency: 1}, (job, done) => {
-		fetch(urlBlobs + '?state=' + config.enums.blobStates.pending, {headers: {Authorization: encodedAuth}})
+	agenda.define(config.JOBS.pollBlobsPending, {concurrency: 1}, (job, done) => {				;
+		fetch(urlBlobs + '?state=' + config.BLOB_STATE.pending, {headers: {Authorization: encodedAuth}})
 			.then(res => {
-				expect(res.status).to.equal(config.enums.httpCodes.OK);
+				console.log(res);
+				expect(res.status).to.equal(config.HTTP_CODES.OK);
 				return res.json();
 			}).then(blobs => processBlobsPending(blobs))
 			.then(done())
 			.catch(error => console.error(error));
 	});
 
-	agenda.define(config.enums.jobs.pollBlobsTransformed, (job, done) => {
-		fetch(urlBlobs + '?state=' + config.enums.blobStates.transformed, {headers: {Authorization: encodedAuth}})
+	agenda.define(config.JOBS.pollBlobsTransformed, (job, done) => {
+		fetch(urlBlobs + '?state=' + config.BLOB_STATE.transformed, {headers: {Authorization: encodedAuth}})
 			.then(res => {
-				expect(res.status).to.equal(config.enums.httpCodes.OK);
+				expect(res.status).to.equal(config.HTTP_CODES.OK);
 				return res.json();
 			}).then(blobs => processBlobsTransformed(blobs))
 			.then(done())
 			.catch(error => console.error(error));
 	});
 
-	agenda.define(config.enums.jobs.pollBlobsAborted, (job, done) => {
-		fetch(urlBlobs + '?state=' + config.enums.blobStates.aborted, {headers: {Authorization: encodedAuth}})
+	agenda.define(config.JOBS.pollBlobsAborted, (job, done) => {
+		fetch(urlBlobs + '?state=' + config.BLOB_STATE.aborted, {headers: {Authorization: encodedAuth}})
 			.then(res => {
-				expect(res.status).to.equal(config.enums.httpCodes.OK);
+				expect(res.status).to.equal(config.HTTP_CODES.OK);
 				return res.json();
 			}).then(json => processBlobsAborted(json))
 			.then(done())
@@ -108,7 +109,7 @@ function processBlobsPending(blobs) {
 				}
 
 				// C: Update blob state trough API
-				const data = {state: config.enums.blobStates.inProgress};
+				const data = {state: config.BLOB_STATE.inProgress};
 				fetch(urlBlob, {
 					method: 'POST',
 					body: JSON.stringify(data),
@@ -119,7 +120,7 @@ function processBlobsPending(blobs) {
 					}
 				})
 					.then(res => {
-						expect(res.status).to.equal(config.enums.httpCodes.Updated);
+						expect(res.status).to.equal(config.HTTP_CODES.Updated);
 						if (logs) {
 							console.log('Blob set to:', data);
 						}
@@ -230,7 +231,7 @@ function processBlobsTransformed(blobs) {
 								}
 
 								// C: Update blob state trough API
-								const data = {state: config.enums.blobStates.inProgress};
+								const data = {state: config.BLOB_STATE.inProgress};
 								fetch(urlBlob, {
 									method: 'POST',
 									body: JSON.stringify(data),
@@ -240,7 +241,7 @@ function processBlobsTransformed(blobs) {
 										Accept: 'application/json'
 									}
 								}).then(res => {
-									expect(res.status).to.equal(config.enums.httpCodes.Updated);
+									expect(res.status).to.equal(config.HTTP_CODES.Updated);
 									if (logs) {
 										console.log('Blob set to:', data);
 									}
@@ -347,7 +348,7 @@ function getBlobProfile(urlBlob) {
 		// Get Profilename from blob
 		fetch(urlBlob, {headers: {Authorization: encodedAuth}})
 			.then(res => {
-				expect(res.status).to.equal(config.enums.httpCodes.OK);
+				expect(res.status).to.equal(config.HTTP_CODES.OK);
 				return res.json();
 			})
 			.then(json => {
@@ -364,7 +365,7 @@ function getBlobProfile(urlBlob) {
 				const urlProfileLocal = urlProfile + blob.profile; // This is profile name
 				fetch(urlProfileLocal, {headers: {Authorization: encodedAuth}})
 					.then(res => {
-						expect(res.status).to.equal(config.enums.httpCodes.OK);
+						expect(res.status).to.equal(config.HTTP_CODES.OK);
 						return res.json();
 					})
 					.then(profile => {

@@ -6,3 +6,4 @@ dist
 config-crowd.js
 src/config-crowd.js
 dist/config-crowd.js
+.env

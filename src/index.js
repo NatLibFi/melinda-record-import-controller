@@ -28,15 +28,9 @@
 
 'use strict';
 
-import {CommonUtils} from '@natlibfi/melinda-record-import-commons';
+import {checkEnv} from '@natlibfi/melinda-record-import-commons';
 
 let MANDATORY_ENV_VARIABLES = [
-	'AMQP_URL',
-	'URL_API',
-	'MONGODB_URI',
-	'WORK_PEND',
-	'WORK_TRANS',
-	'WORK_ABORT',
 	'API_USERNAME',
 	'API_PASS'
 ];
@@ -48,6 +42,18 @@ if (process.env.USE_DEF === 'true') {
 	];
 }
 
-CommonUtils.checkEnv(MANDATORY_ENV_VARIABLES); // Check that all values are set
+checkEnv(MANDATORY_ENV_VARIABLES); // Check that all values are set
+
+process.on('unhandledRejection', err => {
+	console.error(err);
+	process.exit(-1);
+});
+
+process.on('uncaughtException', err => {
+	console.error(err);
+	process.exit(-1);
+});
 
 require('./worker')();
+
+
