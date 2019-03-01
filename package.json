@@ -17,53 +17,45 @@
   "version": "1.0.0",
   "main": "./dist/index.js",
   "engines": {
-    "node": ">=7"
+    "node": ">=8"
   },
   "scripts": {
-    "prepublishOnly": "npm run build:transpile",
-    "lint": "xo --fix",
-    "test": "cross-env NODE_ENV=test nyc mocha --require babel-core/register",
-    "coverage": "nyc check-coverage",
-    "clean": "rimraf build coverage .nyc_output dist",
-    "build:transpile": "babel src --source-maps --out-dir=dist --minified",
-    "build": "npm run build:transpile && ncu --packageFile package.json",
-    "dev": "npm run clean && npm run build:transpile",
-    "dev:check": "npm run clean && npm run lint && npm test;npm run coverage;npm run dev",
-    "dev:watch": "chokidar src -c 'npm run build:transpile && node dist/index.js'",
-    "check-and-build": "npm run lint && npm test && npm run coverage && npm run build",
-    "travisci": "npm run check-and-build",
-    "publish-to-npm": "npm install && npm run lint && npm test && npm run coverage && npm publish --access=public"
+    "check-deps": "npm-check || exit 0",
+    "lint": "eslint --fix src",
+    "test": "npm run lint",
+    "build:transpile": "babel src --source-maps --delete-dir-on-start --out-dir=dist",
+    "build": "npm run build:transpile && npm run check-deps",
+    "watch:test": "cross-env DEBUG=1 NODE_ENV=test chokidar src -c 'npm test'",
+    "watch:dev": "chokidar src -c 'npm run build:transpile && node dist/index.js'"
   },
   "dependencies": {
     "@natlibfi/melinda-record-import-commons": "^2.0.1",
+    "@babel/core": "^7.2.0",
     "agenda": "^2.0.2",
-    "body-parser": "^1.18.3",
-    "cors": "^2.8.5",
     "dockerode": "^2.5.8",
-    "express": "^4.16.4",
     "lodash": "^4.17.11",
-    "morgan": "^1.9.1",
     "node-fetch": "^2.3.0",
-    "stream": "0.0.2"
+    "chai": "^4.2.0"
   },
   "devDependencies": {
-    "npm-check-updates": "^2.15.0",
-    "rimraf": "^2.6.3",
-    "mocha": "^5.2.0",
-    "xo": "^0.24.0",
-    "istanbul": "^0.4.5",
-    "chai": "^4.2.0",
-    "nyc": "^13.2.0",
-    "cross-env": "^5.2.0",
-    "chokidar-cli": "^1.2.1",
-    "babel-cli": "^6.26.0",
-    "babel-register": "^6.26.0",
-    "babel-preset-env": "^1.7.0",
-    "babel-plugin-istanbul": "^5.1.0",
-    "nodemon": "^1.18.10",
-    "codeclimate-test-reporter": "^0.5.1"
+    "@babel/cli": "^7.2.0",
+    "@babel/preset-env": "^7.2.0",
+    "babel-eslint": "^10.0.1",
+    "chokidar-cli": "^1.2.0",
+    "cross-env": "^5.1.1",
+    "eslint": "^5.9.0",
+    "eslint-plugin-import": "^2.14.0",
+    "npm-check": "^5.9.0"
   },
-  "xo": {
+  "eslintConfig": {
+    "parser": "babel-eslint",
+    "plugins": [
+      "import"
+    ],
+    "extends": [
+      "xo",
+      "plugin:import/errors"
+    ],
     "rules": {
       "prefer-arrow-callback": [
         "error"
@@ -73,35 +65,13 @@
   "babel": {
     "presets": [
       [
-        "env",
+        "@babel/preset-env",
         {
           "targets": {
-            "node": "7"
+            "node": "8"
           }
         }
       ]
-    ],
-    "env": {
-      "test": {
-        "plugins": [
-          "istanbul"
-        ]
-      }
-    }
-  },
-  "nyc": {
-    "reporter": [
-      "lcov",
-      "html"
-    ],
-    "require": [
-      "babel-register"
-    ],
-    "sourceMap": false,
-    "instrument": false,
-    "lines": 100,
-    "statements": 100,
-    "functions": 100,
-    "branches": 100
+    ]
   }
 }
