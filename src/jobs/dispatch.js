@@ -47,7 +47,7 @@ const docker = new Docker();
 // ////////////////////////////////////////////////////////
 // Start: Defining jobs to be activated from worker
 module.exports = function (agenda) {
-	agenda.define(config.enums.JOBS.pollBlobsPending, {concurrency: 1}, (job, done) => {
+	agenda.define(config.enums.JOBS.pollBlobsPending, (job, done) => {
 		fetch(urlBlobs + '?state=' + config.enums.BLOB_STATE.pending, {headers: {Authorization: encodedAuth}})
 			.then(res => {
 				expect(res.status).to.equal(config.enums.HTTP_CODES.OK);
@@ -57,22 +57,11 @@ module.exports = function (agenda) {
 	});
 
 	agenda.define(config.enums.JOBS.pollBlobsTransformed, (job, done) => {
-		// Check fist blobs that are set to transformed, if containers are started
 		fetch(urlBlobs + '?state=' + config.enums.BLOB_STATE.transformed, {headers: {Authorization: encodedAuth}})
 			.then(res => {
 				expect(res.status).to.equal(config.enums.HTTP_CODES.OK);
 				return res.json();
-			}).then(blobs => processBlobsImport(blobs, config.enums.BLOB_STATE.transformed, null))
-			.then(() => {
-				// Check if there are started containers that do not exceed
-				fetch(urlBlobs + '?state=' + config.enums.BLOB_STATE.inProgress, {headers: {Authorization: encodedAuth}})
-					.then(res => {
-						expect(res.status).to.equal(config.enums.HTTP_CODES.OK);
-						return res.json();
-					})
-					.then(blobs => processBlobsImport(blobs, config.enums.BLOB_STATE.inProgress, done))
-					.catch(error => console.error(error));
-			})
+			}).then(blobs => processBlobsImport(blobs, done))
 			.catch(error => console.error(error));
 	});
 
@@ -106,7 +95,7 @@ module.exports = function (agenda) {
 // c. Call POST /profiles/{id} with status={blobStates.inProgress}
 function processBlobsPending(blobs, done) {
 	if (logs) {
-		console.log('Pending blobs to Process:', blobs);
+		console.log('* PENDING blobs to Process:', blobs);
 	}
 
 	// Cycle trough each found blob
@@ -201,23 +190,22 @@ function dispatchTransformer(profile) {
 // ////////////////////////////////////////////////////////
 // Start: Subfunctions for Transformed blobs
 // Blob state is TRANSFORMED - This is provided as blobs
-// a. If the are no running importer containers for the blob, retrieve the profile specified in blob metadata: GET /profiles/{id}
-// b. Dispatch importer containers according to the profile. The maximum number of containers to dispatch is specified by environment variable IMPORTER_CONCURRENCY
-// c. Call POST /blobs/{id} with op=TRANSFORMATION_IN_PROGRESS
-function processBlobsImport(blobs, state, done) {
+// a. Retrieve the profile specified in blob metadata: GET /profiles/{id}
+// b. Dispatch importer containers according to the profile (import.image, import.env). The maximum number of containers to dispatch for a blob is specified by environment variable IMPORTER_CONCURRENCY (And the total maximum of all containers dispatched by the controller is specified by CONTAINERS_CONCURRENCY)
+function processBlobsImport(blobs, done) {
 	if (logs) {
-		console.log(state, 'blobs to Process:', blobs);
+		console.log('* TRANSFORMED blobs to Process: ', blobs);
 	}
 
 	const searchOptsImporters = {
 		filters: '{"label": ["fi.nationallibrary.melinda.record-import.container-type=import-task"]}'
 	};
 
-	// Check total amout of containers
+	// Check total amount of running containers and set global CONTAINERS_CONCURRENCY limit (b)
 	docker.listContainers(searchOptsImporters, (err, impContainers) => {
-		const canStartCount = config.CONTAINERS_CONCURRENCY - impContainers.length;
+		let canStartGlobalCount = config.CONTAINERS_CONCURRENCY - impContainers.length;
 		if (logs) {
-			console.log('Running import containers:', impContainers.length, ', maximum:', config.CONTAINERS_CONCURRENCY, ', can start:', canStartCount);
+			console.log('Running import containers:', impContainers.length, ', maximum:', config.CONTAINERS_CONCURRENCY, ', global limit allows to start: ', canStartGlobalCount);
 		}
 
 		if (err) {
@@ -226,27 +214,23 @@ function processBlobsImport(blobs, state, done) {
 
 		// Check that global concurrency limit is not exceeded
 		if (impContainers.length < config.CONTAINERS_CONCURRENCY) {
-			// Cycle trough each found blob
-			const goTroughEachBlobPromise = startContainerForEach(blobs, canStartCount);
+			// Cycle trough each found blob in subfunction
+			const goTroughEachBlobPromise = startContainersForEach(blobs, canStartGlobalCount);
 			goTroughEachBlobPromise.then(() => {
-				callDone(done);
+				done();
 			}).catch(error => {
 				console.error(error);
 			});
 		} else {
-			console.error('Maximum number of jobs set in CONTAINERS_CONCURRENCY (', config.CONTAINERS_CONCURRENCY, ') exceeded, running containers:', impContainers);
-			callDone(done);
+			console.error('Maximum number of jobs set in CONTAINERS_CONCURRENCY (', config.CONTAINERS_CONCURRENCY, ') exceeded, running containers: ', impContainers.length);
+			done();
 		}
 	});
 }
 
-function callDone(done) {
-	if (done !== null) {
-		done();
-	}
-}
 
-function startContainerForEach(blobs, canStartCount) {
+//Go trough each found blob, check concurrency limits and figure out how many containers to launch
+function startContainersForEach(blobs, canStartGlobalCount) {
 	return new Promise((resolve, reject) => {
 		const blobStartups = blobs.map(urlBlob => {
 			const searchOptsSingle = {
@@ -254,51 +238,29 @@ function startContainerForEach(blobs, canStartCount) {
 			};
 
 			return new Promise(resolve => {
-			// A: If the are no running importer containers, get profile to be used for containers
 				docker.listContainers(searchOptsSingle, (error, containers) => {
 					if (error) {
 						reject(error);
 					}
 
+					let canStartCount = config.IMPORTER_CONCURRENCY - containers.length;
+					let containersToStart = ( canStartCount > canStartGlobalCount ) ?  canStartGlobalCount : canStartCount;
 					if (logs) {
-						console.log('Running import containers for blob:', containers.length, ', maximum:', config.IMPORTER_CONCURRENCY);
+						console.log('Running import containers for blob:', containers.length, ', maximum: ', config.IMPORTER_CONCURRENCY, ', can start: ', canStartCount, ', global limit: ', canStartGlobalCount ,', will start: ', containersToStart );
 					}
 
-					if (containers.length < config.IMPORTER_CONCURRENCY && canStartCount > 0) {
-						canStartCount--;
+					if ( containersToStart > 0) {
+						canStartGlobalCount = canStartGlobalCount - containersToStart;
+
 						const getProfilePromise = getBlobProfile(urlBlob);
 						getProfilePromise.then(profile => {
-							if (logs) {
-								console.log('Starting IMPORT container');
-							}
-
-							// B: Dispatch importer container
-							const dispatchImporterPromise = dispatchImporter(profile);
+							//Launch actual amount of containers for each specific blob
+							const dispatchImporterPromise = dispatchImportersForBlob(profile, containersToStart);
 							dispatchImporterPromise.then(result => {
 								if (logs) {
-									console.log('Starting IMPORT container end, success:', result);
+									console.log('Starting IMPORT containers end, success:', result);
 								}
-
-								// C: Update blob state trough API
-								const data = {state: config.enums.BLOB_STATE.inProgress};
-								fetch(urlBlob, {
-									method: 'POST',
-									body: JSON.stringify(data),
-									headers: {
-										Authorization: encodedAuth,
-										'Content-Type': 'application/json',
-										Accept: 'application/json'
-									}
-								}).then(res => {
-									expect(res.status).to.equal(config.enums.HTTP_CODES.Updated);
-									if (logs) {
-										console.log('Blob set to:', data);
-									}
-
-									resolve();
-								}).catch(error => {
-									reject(error);
-								});
+								resolve();
 							}).catch(error => {
 								reject(error);
 							});
@@ -306,7 +268,7 @@ function startContainerForEach(blobs, canStartCount) {
 							reject(error);
 						});
 					} else {
-						console.info('There is already maximum number (', config.IMPORTER_CONCURRENCY, ') of containers running for blob:', urlBlob, 'or total maximum number reached');
+						console.info('Maximum number of containers running (now: ',containers.length , '/ max: ', config.IMPORTER_CONCURRENCY,') for blob:', urlBlob, 'or total maximum global limit reached. (can still start: ', canStartGlobalCount, ' / max: ', config.CONTAINERS_CONCURRENCY ,')');
 						resolve();
 					}
 				});
@@ -316,8 +278,9 @@ function startContainerForEach(blobs, canStartCount) {
 	});
 }
 
-function dispatchImporter(profile) {
-	return new Promise((resolve, reject) => {
+//Dispact containers matching profile and amount specified in containersToStart
+function dispatchImportersForBlob(profile, containersToStart) {
+	return new Promise((resolve, reject) => {	
 		try {
 			expect(profile.transformation.abortOnInvalidRecords).to.exist;
 			expect(profile.name).to.exist;
@@ -326,30 +289,37 @@ function dispatchImporter(profile) {
 			reject(error);
 		}
 
-		const importer = _.cloneDeep(config.importer);
-		importer.Image = profile.import.image;
-		importer.Labels.blobID = profile.blob;
-		importer.Env = [
-			'PROFILE_ID=' + profile.name,
-			'BLOB_ID=' + profile.blob,
-			'API_URL=' + config.urlAPI,
-			'API_USERNAME=' + process.env.CROWD_USERNAME,
-			'API_PASSWORD=' + process.env.CROWD_PASS,
-			'AMQP_URL=' + process.env.AMQP_URL
-		];
-
-		docker.createContainer(
-			importer
-		).then(cont => {
-			return cont.start();
-		}).then((cont) => {
-			if (logs) {
-				console.log('ID of started IMPORT container:', cont.id);
-			}
-			resolve(true);
-		}).catch(error => {
-			reject(error);
-		});
+		//Create containersToStart amount of promises to start container
+		var requests = [];
+		for(var i = 0 ; i < containersToStart; i++ ){
+			requests.push( new Promise(resolve => {
+				const importer = _.cloneDeep(config.importer);
+				importer.Image = profile.import.image;
+				importer.Labels.blobID = profile.blob;
+				importer.Env = [
+					'PROFILE_ID=' + profile.name,
+					'BLOB_ID=' + profile.blob,
+					'API_URL=' + config.urlAPI,
+					'API_USERNAME=' + process.env.CROWD_USERNAME,
+					'API_PASSWORD=' + process.env.CROWD_PASS,
+					'AMQP_URL=' + process.env.AMQP_URL
+				];
+		
+				docker.createContainer(
+					importer
+				).then(cont => {
+					return cont.start();
+				}).then((cont) => {
+					if (logs) {
+						console.log('ID of started IMPORT container:', cont.id);
+					}
+					resolve();
+				}).catch(error => {
+					reject(error);
+				});			
+			}));
+		}
+		Promise.all(requests).then(() => resolve(true)).catch(error => reject(error));
 	});
 }
 // End: Subfunctions for Transformed blobs
@@ -361,7 +331,7 @@ function dispatchImporter(profile) {
 // a. Terminate any importer containers for the blob
 function processBlobsAborted(blobs, done) {
 	if (logs) {
-		console.log('Aborted blobs to process:', blobs);
+		console.log('* ABORTED blobs to process:', blobs);
 	}
 
 	const blobAbort = blobs.map(urlBlob => {
@@ -400,6 +370,10 @@ function processBlobsAborted(blobs, done) {
 //  i. Terminate containers for which a health check fails.
 // ii. Raise an alert about the termination
 function checkHealthy() {
+	if (logs) {
+		console.log('* HEALTHCHECK unhealthy containers');
+	}
+
 	return new Promise((resolve, reject) => {
 		docker.listContainers({filters: {health: ['unhealthy']}}, (err, containers) => {
 			if (err) {
