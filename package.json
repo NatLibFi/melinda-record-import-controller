@@ -29,7 +29,7 @@
     "watch:dev": "chokidar src -c 'npm run build:transpile && node dist/index.js'"
   },
   "dependencies": {
-    "@natlibfi/melinda-record-import-commons": "^2.0.1",
+    "@natlibfi/melinda-record-import-commons": "^2.2.0",
     "@babel/core": "^7.2.0",
     "agenda": "^2.0.2",
     "dockerode": "^2.5.8",

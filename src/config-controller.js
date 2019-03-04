@@ -83,7 +83,7 @@ exports.transformer = {
 		'AMQP_URL={{AMQP_URL}}'
 	],
 	Healthcheck: {
-		Test: ['CMD-SHELL', 'curl -s localhost:8080/healthz'],
+		Test: ['CMD-SHELL', 'node node_modules/.bin/healthz'],
 		Interval: 30000000000,
 		Timeout: 10000000000,
 		Retries: 3
@@ -110,7 +110,7 @@ exports.importer = {
 		'AMQP_URL={{AMQP_URL}}'
 	],
 	Healthcheck: {
-		Test: ['CMD-SHELL', 'curl -s localhost:8080/healthz'],
+		Test: ['CMD-SHELL', 'node node_modules/.bin/healthz'],
 		Interval: 30000000000,
 		Timeout: 10000000000,
 		Retries: 3
