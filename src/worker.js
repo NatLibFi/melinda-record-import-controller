@@ -28,6 +28,8 @@
 
 'use strict';
 
+const {Utils} = require('@natlibfi/melinda-commons');
+
 const Agenda = require('agenda');
 
 const config = require('./config-controller');
@@ -36,8 +38,13 @@ const agenda = new Agenda(config.agendaMongo);
 
 const jobTypes = ['dispatch']; // Get jobs from dispatch file from jobs folder
 
+const {createLogger} = Utils;
+
 module.exports = function () {
-	console.log('Starting');
+	const Logger = createLogger();
+
+	Logger.log('info', 'Starting melinda-record-import-controller');
+
 	agenda.on('ready', () => {
 		jobTypes.forEach(type => {
 			require('./jobs/' + type)(agenda);

@@ -59,4 +59,3 @@ process.on('uncaughtException', err => {
 
 require('./worker')();
 
-

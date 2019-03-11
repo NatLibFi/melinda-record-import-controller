@@ -29,16 +29,18 @@
     "watch:dev": "chokidar src -c 'npm run build:transpile && node dist/index.js'"
   },
   "dependencies": {
-    "@natlibfi/melinda-record-import-commons": "^2.2.0",
     "@babel/core": "^7.2.0",
+    "@natlibfi/melinda-commons": "^3.2.1",
+    "@natlibfi/melinda-record-import-commons": "^2.2.0",
     "agenda": "^2.0.2",
+    "chai": "^4.2.0",
     "dockerode": "^2.5.8",
     "lodash": "^4.17.11",
-    "node-fetch": "^2.3.0",
-    "chai": "^4.2.0"
+    "node-fetch": "^2.3.0"
   },
   "devDependencies": {
     "@babel/cli": "^7.2.0",
+    "@babel/node": "^7.2.2",
     "@babel/preset-env": "^7.2.0",
     "babel-eslint": "^10.0.1",
     "chokidar-cli": "^1.2.0",

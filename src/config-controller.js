@@ -62,9 +62,6 @@ exports.workerFrequency = {
 exports.IMPORTER_CONCURRENCY = process.env.IMPORTER_CONCURRENCY || 1;
 exports.CONTAINERS_CONCURRENCY = process.env.CONTAINERS_CONCURRENCY || 10;
 
-// Logs or no logs
-exports.logs = process.env.DEBUG === 'true'; // Default: false
-
 // Base configurations for dockering, {} values are replaced on dispatching
 exports.transformer = {
 	Image: '{profile.transformation.image}',
