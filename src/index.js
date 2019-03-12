@@ -26,36 +26,71 @@
 *
 */
 
-'use strict';
+import {Utils} from '@natlibfi/melinda-commons';
+import {MongoClient, MongoError} from 'mongodb';
+import Agenda from 'agenda';
+import {createDispatchJob} from './jobs';
+// Import {createDispatchJob, createCleanupJob} from './jobs';
+import {
+	MONGODB_URI,
+	JOB_BLOBS_PENDING, JOB_BLOBS_TRANSFORMED, JOB_BLOBS_ABORTED, JOB_CONTAINERS_HEALTH,
+	JOB_FREQ_BLOBS_PENDING, JOB_FREQ_BLOBS_TRANSFORMED, JOB_FREQ_BLOBS_ABORTED, JOB_FREQ_CONTAINERS_HEALTH/*
+	JOB_BLOBS_METADATA_CLEANUP, JOB_BLOBS_CONTENT_CLEANUP,
+	JOB_FREQ_BLOBS_METADATA_CLEANUP, JOB_FREQ_BLOBS_CONTENT_CLEANUP */
+} from './config';
 
-import {checkEnv} from '@natlibfi/melinda-record-import-commons';
+const {createLogger, handleInterrupt} = Utils;
 
-let MANDATORY_ENV_VARIABLES = [
-	'AMQP_URL',
-	'URL_API',
-	'MONGODB_URI',
-	'API_USERNAME',
-	'API_PASSWORD'
-];
+run();
 
-if (process.env.USE_DEF === 'true') {
-	MANDATORY_ENV_VARIABLES = [
-		'API_USERNAME',
-		'API_PASSWORD'
-	];
+async function run() {
+	const Logger = createLogger();
+	const Mongo = await MongoClient.connect(MONGODB_URI, {useNewUrlParser: true});
+
+	process
+		.on('SIGINT', handleExit)
+		.on('unhandledRejection', handleExit)
+		.on('uncaughtException', handleExit);
+
+	await initDb();
+	
+	const agenda = new Agenda({mongo: Mongo.db()});
+
+	Logger.log('info', 'Starting melinda-record-import-controller');
+
+	agenda.on('ready', () => {
+		createDispatchJob(agenda);
+		// CreateCleanupJob(agenda);
+
+		agenda.every(JOB_FREQ_BLOBS_PENDING, JOB_BLOBS_PENDING);
+		agenda.every(JOB_FREQ_BLOBS_TRANSFORMED, JOB_BLOBS_TRANSFORMED);
+		agenda.every(JOB_FREQ_BLOBS_ABORTED, JOB_BLOBS_ABORTED);
+		agenda.every(JOB_FREQ_CONTAINERS_HEALTH, JOB_CONTAINERS_HEALTH);
+
+		// Agenda.every(JOB_FREQ_BLOBS_CONTENT_CLEANUP, JOB_BLOBS_CONTENT_CLEANUP);
+		// agenda.every(JOB_FREQ_BLOBS_METADATA_CLEANUP, JOB_BLOBS_METADATA_CLEANUP);
+
+		agenda.start();
+	});
+	
+	async function initDb() {
+		const db = Mongo.db();
+		try {
+			// Remove collection because it causes problems after restart
+			await db.dropCollection('agendaJobs');
+			await db.createCollection('agendaJobs');
+		} catch (err) {
+			// NamespaceNotFound === Collection doesn't exist
+			if (err instanceof MongoError && err.code === 26) {
+				return;
+			}
+
+			throw err;
+		}		
+	}
+
+	async function handleExit(arg) {
+		await Mongo.close();
+		handleInterrupt(arg);
+	}
 }
-
-checkEnv(MANDATORY_ENV_VARIABLES); // Check that all values are set
-
-process.on('unhandledRejection', err => {
-	console.error('Unhandled Rejection: ', err);
-	process.exit(-1);
-});
-
-process.on('uncaughtException', err => {
-	console.error('Uncaught Exception: ', err);
-	process.exit(-1);
-});
-
-require('./worker')();
-

@@ -20,6 +20,7 @@
     "node": ">=8"
   },
   "scripts": {
+    "start": "node dist/index.js",
     "check-deps": "npm-check || exit 0",
     "lint": "eslint --fix src",
     "test": "npm run lint",
@@ -33,9 +34,7 @@
     "@natlibfi/melinda-commons": "^3.2.1",
     "@natlibfi/melinda-record-import-commons": "^2.2.0",
     "agenda": "^2.0.2",
-    "chai": "^4.2.0",
     "dockerode": "^2.5.8",
-    "lodash": "^4.17.11",
     "node-fetch": "^2.3.0"
   },
   "devDependencies": {
