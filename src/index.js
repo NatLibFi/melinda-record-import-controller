@@ -35,13 +35,13 @@ let MANDATORY_ENV_VARIABLES = [
 	'URL_API',
 	'MONGODB_URI',
 	'API_USERNAME',
-	'API_PASS'
+	'API_PASSWORD'
 ];
 
 if (process.env.USE_DEF === 'true') {
 	MANDATORY_ENV_VARIABLES = [
 		'API_USERNAME',
-		'API_PASS'
+		'API_PASSWORD'
 	];
 }
 

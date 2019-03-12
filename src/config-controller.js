@@ -76,7 +76,7 @@ exports.transformer = {
 		'BLOB_ID={profile.blob=blob.id}*',
 		'API_URL={{URL_API}}',
 		'API_USERNAME={{API_USERNAME}}',
-		'API_PASSWORD={{API_PASS}}',
+		'API_PASSWORD={{API_PASSWORD}}',
 		'AMQP_URL={{AMQP_URL}}'
 	],
 	Healthcheck: {
@@ -103,7 +103,7 @@ exports.importer = {
 		'BLOB_ID={profile.blob=blob.id}',
 		'API_URL={{URL_API}}',
 		'API_USERNAME={{API_USERNAME}}',
-		'API_PASSWORD={{API_PASS}}',
+		'API_PASSWORD={{API_PASSWORD}}',
 		'AMQP_URL={{AMQP_URL}}'
 	],
 	Healthcheck: {

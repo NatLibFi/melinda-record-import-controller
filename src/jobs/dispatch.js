@@ -57,7 +57,7 @@ module.exports = function (agenda) {
 			.catch(error => Logger.log('error', error));
 	});
 
-	agenda.define(config.enums.JOBS.pollBlobsTransformed, (job, done) => {
+	agenda.define(config.enums.JOBS.pollBlobsTransformed, (job, done) => {		
 		fetch(urlBlobs + '?state=' + config.enums.BLOB_STATE.transformed, {headers: {Authorization: encodedAuth}})
 			.then(res => {
 				expect(res.status).to.equal(config.enums.HTTP_CODES.OK);
@@ -94,7 +94,7 @@ module.exports = function (agenda) {
 	// a. Retrieve the profile specified in blob metadata: GET /profiles/{id}
 	// b. Dispatch a transformer container according to the profile
 	// c. Call POST /profiles/{id} with status={blobStates.inProgress}
-	function processBlobsPending(blobs, done) {
+	function processBlobsPending(blobs, done) {		
 		Logger.log('debug', '* PENDING blobs to Process:', blobs);
 
 		// Cycle trough each found blob
@@ -123,7 +123,7 @@ module.exports = function (agenda) {
 						})
 							.then(res => {
 								expect(res.status).to.equal(config.enums.HTTP_CODES.Updated);
-								Logger.log('info', `Blob ${urlBlob} set to: ${data}`);
+								Logger.log('info', `Blob ${urlBlob} set to: ${JSON.stringify(data)}`);
 
 								resolve();
 							})
@@ -156,18 +156,19 @@ module.exports = function (agenda) {
 			transformer.Image = profile.transformation.image;
 			transformer.Labels.blobID = profile.blob;
 			transformer.Env = [
-				'ABORT_ON_INVALID_RECORDS=' + profile.transformation.abortOnInvalidRecords,
+				//'ABORT_ON_INVALID_RECORDS=' + profile.transformation.abortOnInvalidRecords,
 				'PROFILE_ID=' + profile.name,
 				'BLOB_ID=' + profile.blob,
 				'API_URL=' + config.urlAPI,
 				'API_USERNAME=' + process.env.API_USERNAME,
 				'API_PASSWORD=' + process.env.API_PASS,
 				'AMQP_URL=' + config.AMQP_URL
-			];
+			].concat(getEnv(profile.transformation.env));
+
 			docker.createContainer(transformer).then(cont => {
 				return cont.start();
 			}).then(cont => {
-				Logger.log('info', 'ID of started TRANSFORMATION container:', cont.id);
+				Logger.log('info', `ID of started TRANSFORMATION container: ${cont.id}`);
 				resolve(true);
 			}).catch(error => {
 				reject(error);
@@ -282,10 +283,10 @@ module.exports = function (agenda) {
 						'PROFILE_ID=' + profile.name,
 						'BLOB_ID=' + profile.blob,
 						'API_URL=' + config.urlAPI,
-						'API_USERNAME=' + process.env.CROWD_USERNAME,
-						'API_PASSWORD=' + process.env.CROWD_PASS,
+						'API_USERNAME=' + process.env.API_USERNAME,
+						'API_PASSWORD=' + process.env.API_PASSWORD,
 						'AMQP_URL=' + process.env.AMQP_URL
-					];
+					].concat(getEnv(profile.import.env));
 
 					docker.createContainer(importer).then(cont => {
 						return cont.start();
@@ -298,7 +299,7 @@ module.exports = function (agenda) {
 				}));
 			}
 
-			Promise.all(requests).then(() => resolve(true)).catch(error => reject(error));
+			Promise.all(requests).then(() => resolve(true)).catch(error => reject(error));			
 		});
 	}
 	// End: Subfunctions for Transformed blobs
@@ -412,6 +413,10 @@ module.exports = function (agenda) {
 				})
 				.catch(error => reject(error));
 		});
+	}
+
+	function getEnv(env={}) {
+		return Object.keys(env).map(k => `${k}=${env[k]}`);		
 	}
 
 	// / Some supporting functions not in use atm:
