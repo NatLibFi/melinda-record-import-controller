@@ -27,8 +27,7 @@
 *
 */
 
+import createCleanupJob from './cleanup';
 import createDispatchJob from './dispatch';
-// Import createCleanupJob from './cleanup';
 
-export {createDispatchJob};
-// Export {createDispatchJob, createCleanupJob};
+export {createDispatchJob, createCleanupJob};

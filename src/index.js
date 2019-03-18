@@ -29,14 +29,13 @@
 import {Utils} from '@natlibfi/melinda-commons';
 import {MongoClient, MongoError} from 'mongodb';
 import Agenda from 'agenda';
-import {createDispatchJob} from './jobs';
-// Import {createDispatchJob, createCleanupJob} from './jobs';
+import {createDispatchJob, createCleanupJob} from './jobs';
 import {
 	MONGODB_URI,
 	JOB_BLOBS_PENDING, JOB_BLOBS_TRANSFORMED, JOB_BLOBS_ABORTED, JOB_CONTAINERS_HEALTH,
-	JOB_FREQ_BLOBS_PENDING, JOB_FREQ_BLOBS_TRANSFORMED, JOB_FREQ_BLOBS_ABORTED, JOB_FREQ_CONTAINERS_HEALTH/*
+	JOB_FREQ_BLOBS_PENDING, JOB_FREQ_BLOBS_TRANSFORMED, JOB_FREQ_BLOBS_ABORTED, JOB_FREQ_CONTAINERS_HEALTH,
 	JOB_BLOBS_METADATA_CLEANUP, JOB_BLOBS_CONTENT_CLEANUP,
-	JOB_FREQ_BLOBS_METADATA_CLEANUP, JOB_FREQ_BLOBS_CONTENT_CLEANUP */
+	JOB_FREQ_BLOBS_METADATA_CLEANUP, JOB_FREQ_BLOBS_CONTENT_CLEANUP
 } from './config';
 
 const {createLogger, handleInterrupt} = Utils;
@@ -53,31 +52,39 @@ async function run() {
 		.on('uncaughtException', handleExit);
 
 	await initDb();
-	
 	const agenda = new Agenda({mongo: Mongo.db()});
 
 	Logger.log('info', 'Starting melinda-record-import-controller');
 
 	agenda.on('ready', () => {
 		createDispatchJob(agenda);
-		// CreateCleanupJob(agenda);
+		createCleanupJob(agenda);
 
 		agenda.every(JOB_FREQ_BLOBS_PENDING, JOB_BLOBS_PENDING);
 		agenda.every(JOB_FREQ_BLOBS_TRANSFORMED, JOB_BLOBS_TRANSFORMED);
 		agenda.every(JOB_FREQ_BLOBS_ABORTED, JOB_BLOBS_ABORTED);
 		agenda.every(JOB_FREQ_CONTAINERS_HEALTH, JOB_CONTAINERS_HEALTH);
 
-		// Agenda.every(JOB_FREQ_BLOBS_CONTENT_CLEANUP, JOB_BLOBS_CONTENT_CLEANUP);
-		// agenda.every(JOB_FREQ_BLOBS_METADATA_CLEANUP, JOB_BLOBS_METADATA_CLEANUP);
+		if (JOB_FREQ_BLOBS_METADATA_CLEANUP === 'never') {
+			Logger.log('info', `Job ${JOB_BLOBS_METADATA_CLEANUP} is disabled`);
+		} else {
+			agenda.every(JOB_FREQ_BLOBS_METADATA_CLEANUP, JOB_BLOBS_METADATA_CLEANUP);
+		}
+
+		if (JOB_FREQ_BLOBS_CONTENT_CLEANUP === 'never') {
+			Logger.log('info', `Job ${JOB_BLOBS_CONTENT_CLEANUP} is disabled`);
+		} else {
+			agenda.every(JOB_FREQ_BLOBS_CONTENT_CLEANUP, JOB_BLOBS_CONTENT_CLEANUP);
+		}
 
 		agenda.start();
 	});
-	
+
 	async function initDb() {
 		const db = Mongo.db();
 		try {
 			// Remove collection because it causes problems after restart
-			await db.dropCollection('agendaJobs');
+			await db.dropCollection('agendaJobs');			
 			await db.createCollection('agendaJobs');
 		} catch (err) {
 			// NamespaceNotFound === Collection doesn't exist
@@ -86,7 +93,7 @@ async function run() {
 			}
 
 			throw err;
-		}		
+		}
 	}
 
 	async function handleExit(arg) {

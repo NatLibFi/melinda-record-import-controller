@@ -31,10 +31,12 @@
   },
   "dependencies": {
     "@babel/core": "^7.2.0",
-    "@natlibfi/melinda-commons": "^3.2.1",
-    "@natlibfi/melinda-record-import-commons": "^2.2.0",
+    "@natlibfi/melinda-commons": "^4.0.4",
+    "@natlibfi/melinda-record-import-commons": "^3.0.4",
     "agenda": "^2.0.2",
     "dockerode": "^2.5.8",
+    "human-interval": "^0.1.6",
+    "moment": "^2.24.0",
     "node-fetch": "^2.3.0"
   },
   "devDependencies": {
@@ -42,7 +44,7 @@
     "@babel/node": "^7.2.2",
     "@babel/preset-env": "^7.2.0",
     "babel-eslint": "^10.0.1",
-    "chokidar-cli": "^1.2.0",
+    "chokidar-cli": "^1.2.2",
     "cross-env": "^5.1.1",
     "eslint": "^5.9.0",
     "eslint-config-xo": ">=0.25.1 <1.0.0",

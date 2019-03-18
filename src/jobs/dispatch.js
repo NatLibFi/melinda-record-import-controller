@@ -29,12 +29,12 @@
 
 import Docker from 'dockerode';
 import {Utils} from '@natlibfi/melinda-commons';
-import {BLOB_STATE, createApiClient} from '@natlibfi/melinda-record-import-commons';
+import {BLOB_STATE, HTTP_CODES, createApiClient, ApiClientError} from '@natlibfi/melinda-record-import-commons';
 import {
 	API_URL, API_USERNAME, API_PASSWORD,
 	CONTAINER_TEMPLATE_TRANSFORMER, CONTAINER_TEMPLATE_IMPORTER,
 	JOB_BLOBS_PENDING, JOB_BLOBS_TRANSFORMED, JOB_BLOBS_ABORTED, JOB_CONTAINERS_HEALTH,
-	CONTAINERS_CONCURRENCY, IMPORTER_CONCURRENCY
+	CONTAINERS_CONCURRENCY, IMPORTER_CONCURRENCY, API_CLIENT_USER_AGENT
 } from '../config';
 
 const {createLogger} = Utils;
@@ -42,20 +42,27 @@ const {createLogger} = Utils;
 export default function (agenda) {
 	const Logger = createLogger();
 	const docker = new Docker();
-	const ApiClient = createApiClient({url: API_URL, username: API_USERNAME, password: API_PASSWORD});
+	const ApiClient = createApiClient({
+		url: API_URL, username: API_USERNAME, password: API_PASSWORD,
+		userAgent: API_CLIENT_USER_AGENT
+	});
 
 	agenda.define(JOB_BLOBS_PENDING, blobsPending);
 	agenda.define(JOB_BLOBS_TRANSFORMED, blobsTransformed);
 	agenda.define(JOB_BLOBS_ABORTED, blobsAborted);
 	agenda.define(JOB_CONTAINERS_HEALTH, containersHealth);
 
-	async function blobsPending(_, done) {		
-		const blobs = await ApiClient.blobsQuery({state: BLOB_STATE.pending});
-		await processBlobs();
+	async function blobsPending(_, done) {
+		const blobs = await ApiClient.getBlobs({state: BLOB_STATE.pending});
+
+		if (blobs.length > 0) {
+			Logger.log('debug', `${blobs.length} blobs are pending transformation.`);
+			await processBlobs();
+		}
+
 		done();
 
-		async function processBlobs() {	
-			Logger.log('debug', `{blobs.length} are pending transformation.`);		
+		async function processBlobs() {
 			return Promise.all(blobs.map(async blob => {
 				try {
 					const profile = await getBlobProfile(blob);
@@ -69,13 +76,13 @@ export default function (agenda) {
 							template: CONTAINER_TEMPLATE_TRANSFORMER
 						});
 
-						await ApiClient.setTransformationStarted(blob);
+						await ApiClient.setTransformationStarted({id: blob});
 						Logger.log('info', `Transformation started for ${blob} `);
 					} else {
 						Logger.log('warn', `Could not dispatch transformer for blob ${blob} because total number of containers is exhausted`);
 					}
 				} catch (err) {
-					Logger.log('err', err);
+					Logger.log('error', err.stack);
 				}
 
 				async function canDispatch() {
@@ -83,7 +90,7 @@ export default function (agenda) {
 						filters: {
 							label: ['fi.nationallibrary.melinda.record-import.container-type']
 						}
-					}).length;
+					});
 
 					return runningContainers.length < CONTAINERS_CONCURRENCY;
 				}
@@ -92,54 +99,69 @@ export default function (agenda) {
 	}
 
 	async function blobsTransformed(_, done) {
-		const blobs = await ApiClient.blobQuery({state: BLOB_STATE.transformed});
-		Logger.log('debug', `${blobs} blobs are waiting to be imported.`);
-		await processBlobs();
+		try {
+			const blobs = await ApiClient.getBlobs({state: BLOB_STATE.transformed});
+
+			if (blobs.length > 0) {
+				Logger.log('debug', `${blobs.length} blobs have records waiting to be imported.`);
+				await processBlobs(blobs);
+			}	
+		} finally {
+			done();
+		}
+		
 		done();
 
-		async function processBlobs() {
+		async function processBlobs(blobs) {
 			const blob = blobs.shift();
-			const profile = await getBlobProfile(blob);
-
+			
 			if (blob) {
-				const dispatchCount = await getDispatchCount();
+				const profile = await getBlobProfile(blob);
+				const dispatchCount = await getDispatchCount(profile);
 
 				if (dispatchCount > 0) {
 					Logger.log('debug', `Dispatching ${dispatchCount} import containers for blob ${blob}`);
-					await dispatchImporters(dispatchCount);
+					await dispatchImporters(dispatchCount, profile);
 				} else {
 					Logger.log('warn', `Cannot dispatch importer containers for blob ${blob}. Maximum number of containers exhausted.`);
 				}
 
-				return processBlobs();
+				return processBlobs(blobs);
 			}
 
-			async function getDispatchCount() {
-				const total = await docker.listContainers({
+			async function getDispatchCount(profile) {				
+				const total = (await docker.listContainers({
 					filters: {
 						label: ['fi.nationallibrary.melinda.record-import.container-type']
 					}
-				}).length;
+				})).length;
 
-				const importers = await docker.listContainers({
+				const importers = (await docker.listContainers({
 					filters: {
 						label: [
 							'fi.nationallibrary.melinda.record-import.container-type=import-task',
-							`blobID=${blob}`
+							`profile=${profile.name}`
 						]
 					}
-				}).length;
+				})).length;			
 
-				Logger.log('debug', `Running import containers for blob ${blob}: ${importers}/${IMPORTER_CONCURRENCY}. Running containers total: ${total}/${CONTAINERS_CONCURRENCY}`);
+				Logger.log('debug', `Running import containers for profile ${profile.name}: ${importers}/${IMPORTER_CONCURRENCY}. Running containers total: ${total}/${CONTAINERS_CONCURRENCY}`);
 
-				const availImporters = IMPORTER_CONCURRENCY - importers;
+				const availImporters = IMPORTER_CONCURRENCY - importers;				
 				const availTotal = CONTAINERS_CONCURRENCY - total;
-				const avail = availTotal - availImporters;
 
-				return avail > 0 ? avail : 0;
+				if (availImporters > 0 && availTotal > 0) {
+					if (availTotal >= availImporters) {
+						return availImporters;
+					}
+
+					return availImporters - availTotal;
+				}
+	
+				return 0;
 			}
 
-			async function dispatchImporters(count) {
+			async function dispatchImporters(count, profile) {
 				return Promise.all(map(async () => {
 					try {
 						await dispatchContainer({
@@ -149,7 +171,7 @@ export default function (agenda) {
 							template: CONTAINER_TEMPLATE_IMPORTER
 						});
 					} catch (err) {
-						Logger.log('error', err);
+						Logger.log('error', err.stack);
 					}
 				}));
 
@@ -161,66 +183,104 @@ export default function (agenda) {
 	}
 
 	async function blobsAborted(_, done) {
-		const blobs = await ApiClient.blobQuery({state: BLOB_STATE.aborted});		
-		await processBlobs();
+		const blobs = await ApiClient.getBlobs({state: BLOB_STATE.aborted});
+
+		if (blobs.length > 0) {
+			Logger.log('debug', `${blobs.length} blobs have been aborted and need to have their containers stopped`);
+			await processBlobs();
+		}
+
 		done();
 
 		async function processBlobs() {
-			Logger.log('debug', `${blobs} have been aborted`);
 			return Promise.all(blobs.map(async blob => {
 				try {
 					const containers = await docker.listContainers({
 						filters: {
 							label: [
 								'fi.nationallibrary.melinda.record-import.container-type',
-								`blobID=${blob}`
+								`blobId=${blob}`
 							]
 						}
 					});
 
 					Logger.log('debug', `Stopping ${containers.length} containers because blob ${blob} state is set to ABORTED.`);
 
+					// FTODO: CLEAN QUEUE
+
 					await Promise.all(containers.map(async container => {
 						try {
 							await docker.getContainer(container.id).stop();
 						} catch (err) {
-							Logger.log('error', err);
+							Logger.log('error', err.stack);
 						}
 					}));
 				} catch (err) {
-					Logger.log('err', err);
+					Logger.log('error', err.stack);
 				}
 			}));
 		}
 	}
 
-	async function containersHealth(_, done) {		
-		const containers = await docker.listContainers({
+	async function containersHealth(_, done) {
+		const containersInfo = await docker.listContainers({
+			all: true,
 			filters: {
 				health: ['unhealthy'],
 				label: ['fi.nationallibrary.melinda.record-import.container-type']
 			}
 		});
 
-		if (containers.length > 0) {
-			Logger.log('debug', `${containers.length} containers are unhealthy and need to be stopped.`);
-
-			await Promise.all(containers.map(async container => {
+		if (containersInfo.length > 0) {			
+			await Promise.all(containersInfo.map(async info => {
 				try {
-					await docker.getContainer(container.id).stop();
+					const cont = await docker.getContainer(info.id);
+
+					if (info.running) {
+						Logger.log('debug', `Stopping unhealthy container`);
+						await cont.stop();
+					}
+
+					try {
+						const blobMetadata = await ApiClient.getBlobMetadata({id: info.Labels.blobId});
+						
+						if (blobMetadata.state === BLOB_STATE.transformationInProgress) {
+							Logger.log('debug', `Setting state to TRANSFORMATION_FAILED for blob ${blobMetadata.id} because container was unhealthy.`);
+							await ApiClient.setTransformationFailed({id: blobMetadata.id, err: `Unexpected error. Container id: ${info.id}`});
+						}
+					} catch (err) {
+						if (err instanceof ApiClientError && err.status === HTTP_CODES.NotFound) {
+							Logger.log('debug', `Blob ${info.Labels.blobId} already removed. Removing all related containers`);
+
+							await docker.pruneContainers({
+								all: true,
+								filters: {
+									label: [
+										'fi.nationallibrary.melinda.record-import.container-type',
+										`blobId=${info.Labels.blobId}`
+									]
+								}
+							});
+						} else {
+							throw err;
+						}						
+					}										
 				} catch (err) {
-					Logger.log('error', err);
+					Logger.log('error', err.stack);
+				}
+
+				async function removeContainers() {
+
 				}
 			}));
-	
 		}
-				
+
 		done();
 	}
 
 	async function getBlobProfile(blob) {
-		const metadata = await ApiClient.getBlobMetadata(blob);
-		return ApiClient.getProfile(metadata.profile);
+		const metadata = await ApiClient.getBlobMetadata({id: blob});
+		return ApiClient.getProfile({id: metadata.profile});
 	}
 
 	async function dispatchContainer({blob, profile, options, template}) {
@@ -230,10 +290,11 @@ export default function (agenda) {
 		};
 
 		manifest.Labels.blobId = blob;
-		manifest.transformer.env.push(`PROFILE_ID=${profile}`);
-		manifest.transformer.env.push(`BLOB_ID=${blob}`);
+		manifest.Labels.profile = profile;
+		manifest.Env.push(`PROFILE_ID=${profile}`);
+		manifest.Env.push(`BLOB_ID=${blob}`);
 
-		getEnv(options.env).forEach(v => manifest.env.push(v));
+		getEnv(options.env).forEach(v => manifest.Env.push(v));
 
 		const cont = await docker.createContainer(manifest);
 		const info = await cont.start();

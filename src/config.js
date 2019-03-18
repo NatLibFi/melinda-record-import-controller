@@ -35,26 +35,31 @@ export const API_USERNAME = readEnvironmentVariable('API_USERNAME');
 export const API_PASSWORD = readEnvironmentVariable('API_PASSWORD');
 
 export const MONGODB_URI = readEnvironmentVariable('MONGODB_URI', {defaultValue: 'mongodb://127.0.0.1/db'});
-export const AMQP_URL = readEnvironmentVariable('MONGODB_URI', {defaultValue: 'amqp://127.0.0.1:5672'});
+export const AMQP_URL = readEnvironmentVariable('AMQP_URL', {defaultValue: 'amqp://127.0.0.1:5672'});
 
 export const IMPORTER_CONCURRENCY = readEnvironmentVariable('IMPORTER_CONCURRENCY', {defaultValue: 1, format: v => Number(v)});
 export const CONTAINERS_CONCURRENCY = readEnvironmentVariable('CONTAINERS_CONCURRENCY', {defaultValue: 5, format: v => Number(v)});
+
+export const BLOBS_METADATA_TTL = readEnvironmentVariable('BLOB_METADATA_TTL');
+export const BLOBS_CONTENT_TTL = readEnvironmentVariable('BLOB_CONTENT_TTL');
 
 export const JOB_FREQ_BLOBS_PENDING = readEnvironmentVariable('JOB_FREQ_BLOBS_PENDING', {defaultValue: '10 seconds'});
 export const JOB_FREQ_BLOBS_TRANSFORMED = readEnvironmentVariable('JOB_FREQ_BLOBS_TRANSFORMED', {defaultValue: '10 seconds'});
 export const JOB_FREQ_BLOBS_ABORTED = readEnvironmentVariable('JOB_FREQ_BLOBS_ABORTED', {defaultValue: '10 seconds'});
 export const JOB_FREQ_CONTAINERS_HEALTH = readEnvironmentVariable('JOB_FREQ_CONTAINERS_HEALTH', {defaultValue: '10 seconds'});
 
-// Export const JOB_FREQ_BLOBS_CONTENT_CLEANUP = readEnvironmentVariable('JOB_FREQ_BLOBS_CONTENT_CLEANUP', {defaultValue: '30 minutes'});
-// export const JOB_FREQ_BLOBS_METADATA_CLEANUP = readEnvironmentVariable('JOB_FREQ_BLOBS_METADATA_CLEANUP', {defaultValue: '30 minutes'});
+export const JOB_FREQ_BLOBS_CONTENT_CLEANUP = readEnvironmentVariable('JOB_FREQ_BLOBS_CONTENT_CLEANUP', {defaultValue: '10 seconds'});
+export const JOB_FREQ_BLOBS_METADATA_CLEANUP = readEnvironmentVariable('JOB_FREQ_BLOBS_METADATA_CLEANUP', {defaultValue: '10 seconds'});
 
 export const JOB_BLOBS_PENDING = 'BLOBS_PENDING';
 export const JOB_BLOBS_TRANSFORMED = 'BLOBS_TRANSFORMED';
 export const JOB_BLOBS_ABORTED = 'BLOBS_ABORTED';
 export const JOB_CONTAINERS_HEALTH = 'CONTAINERS_HEALTH';
 
-// Export const JOB_BLOBS_CONTENT_CLEANUP = '';
-// export const JOB_BLOBS_METADATA_CLEANUP = '';
+export const JOB_BLOBS_CONTENT_CLEANUP = 'BLOBS_CONTENT_CLEANUP';
+export const JOB_BLOBS_METADATA_CLEANUP = 'BLOBS_METADATA_CLEANUP';
+
+export const API_CLIENT_USER_AGENT = readEnvironmentVariable('API_CLIENT_USER_AGENT', {defaultValue: '_RECORD-IMPORT-CONTROLLER'});
 
 export const CONTAINER_TEMPLATE_TRANSFORMER = {
 	Labels: {
@@ -66,7 +71,8 @@ export const CONTAINER_TEMPLATE_TRANSFORMER = {
 		`API_URL=${API_URL}`,
 		`API_USERNAME=${API_USERNAME}`,
 		`API_PASSWORD=${API_PASSWORD}`,
-		'ABORT_ON_INVALID_RECORDS=true'
+		'ABORT_ON_INVALID_RECORDS=false',
+		`DEBUG=${process.env.DEBUG}`
 	],
 	Healthcheck: {
 		Test: ['CMD-SHELL', 'node node_modules/.bin/healthz'],
@@ -85,7 +91,8 @@ export const CONTAINER_TEMPLATE_IMPORTER = {
 		`AMQP_URL=${AMQP_URL}`,
 		`API_URL=${API_URL}`,
 		`API_USERNAME=${API_USERNAME}`,
-		`API_PASSWORD=${API_PASSWORD}`
+		`API_PASSWORD=${API_PASSWORD}`,
+		`DEBUG=${process.env.DEBUG}`
 	],
 	Healthcheck: {
 		Test: ['CMD-SHELL', 'node node_modules/.bin/healthz'],
