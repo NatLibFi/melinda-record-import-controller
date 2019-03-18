@@ -37,8 +37,13 @@ export const API_PASSWORD = readEnvironmentVariable('API_PASSWORD');
 export const MONGODB_URI = readEnvironmentVariable('MONGODB_URI', {defaultValue: 'mongodb://127.0.0.1/db'});
 export const AMQP_URL = readEnvironmentVariable('AMQP_URL', {defaultValue: 'amqp://127.0.0.1:5672'});
 
+export const QUEUE_MAX_MESSAGE_TRIES = readEnvironmentVariable('QUEUE_MAX_MESSAGE_TRIES', {defaultValue: 3, format: v => Number(v)});
+export const QUEUE_MESSAGE_WAIT_TIME = readEnvironmentVariable('QUEUE_MESSAGE_WAIT_TIME', {defaultValue: 3000, format: v => Number(v)});
+
 export const IMPORTER_CONCURRENCY = readEnvironmentVariable('IMPORTER_CONCURRENCY', {defaultValue: 1, format: v => Number(v)});
 export const CONTAINERS_CONCURRENCY = readEnvironmentVariable('CONTAINERS_CONCURRENCY', {defaultValue: 5, format: v => Number(v)});
+
+export const CONTAINERS_NETWORKS = readEnvironmentVariable('CONTAINERS_NETWORKS', {defaultValue: [], format: v => JSON.parse(v)});
 
 export const BLOBS_METADATA_TTL = readEnvironmentVariable('BLOB_METADATA_TTL');
 export const BLOBS_CONTENT_TTL = readEnvironmentVariable('BLOB_CONTENT_TTL');

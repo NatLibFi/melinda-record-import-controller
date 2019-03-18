@@ -84,7 +84,7 @@ async function run() {
 		const db = Mongo.db();
 		try {
 			// Remove collection because it causes problems after restart
-			await db.dropCollection('agendaJobs');			
+			await db.dropCollection('agendaJobs');
 			await db.createCollection('agendaJobs');
 		} catch (err) {
 			// NamespaceNotFound === Collection doesn't exist

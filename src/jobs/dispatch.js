@@ -28,19 +28,23 @@
 */
 
 import Docker from 'dockerode';
+import amqplib from 'amqplib';
+import {promisify} from 'util';
 import {Utils} from '@natlibfi/melinda-commons';
 import {BLOB_STATE, HTTP_CODES, createApiClient, ApiClientError} from '@natlibfi/melinda-record-import-commons';
 import {
 	API_URL, API_USERNAME, API_PASSWORD,
+	AMQP_URL, QUEUE_MAX_MESSAGE_TRIES, QUEUE_MESSAGE_WAIT_TIME,
 	CONTAINER_TEMPLATE_TRANSFORMER, CONTAINER_TEMPLATE_IMPORTER,
 	JOB_BLOBS_PENDING, JOB_BLOBS_TRANSFORMED, JOB_BLOBS_ABORTED, JOB_CONTAINERS_HEALTH,
-	CONTAINERS_CONCURRENCY, IMPORTER_CONCURRENCY, API_CLIENT_USER_AGENT
+	CONTAINERS_CONCURRENCY, IMPORTER_CONCURRENCY, API_CLIENT_USER_AGENT, CONTAINERS_NETWORKS
 } from '../config';
 
 const {createLogger} = Utils;
 
 export default function (agenda) {
 	const Logger = createLogger();
+	const setTimeoutPromise = promisify(setTimeout);
 	const docker = new Docker();
 	const ApiClient = createApiClient({
 		url: API_URL, username: API_USERNAME, password: API_PASSWORD,
@@ -105,16 +109,16 @@ export default function (agenda) {
 			if (blobs.length > 0) {
 				Logger.log('debug', `${blobs.length} blobs have records waiting to be imported.`);
 				await processBlobs(blobs);
-			}	
+			}
 		} finally {
 			done();
 		}
-		
+
 		done();
 
 		async function processBlobs(blobs) {
 			const blob = blobs.shift();
-			
+
 			if (blob) {
 				const profile = await getBlobProfile(blob);
 				const dispatchCount = await getDispatchCount(profile);
@@ -129,7 +133,7 @@ export default function (agenda) {
 				return processBlobs(blobs);
 			}
 
-			async function getDispatchCount(profile) {				
+			async function getDispatchCount(profile) {
 				const total = (await docker.listContainers({
 					filters: {
 						label: ['fi.nationallibrary.melinda.record-import.container-type']
@@ -143,11 +147,11 @@ export default function (agenda) {
 							`profile=${profile.name}`
 						]
 					}
-				})).length;			
+				})).length;
 
 				Logger.log('debug', `Running import containers for profile ${profile.name}: ${importers}/${IMPORTER_CONCURRENCY}. Running containers total: ${total}/${CONTAINERS_CONCURRENCY}`);
 
-				const availImporters = IMPORTER_CONCURRENCY - importers;				
+				const availImporters = IMPORTER_CONCURRENCY - importers;
 				const availTotal = CONTAINERS_CONCURRENCY - total;
 
 				if (availImporters > 0 && availTotal > 0) {
@@ -157,7 +161,7 @@ export default function (agenda) {
 
 					return availImporters - availTotal;
 				}
-	
+
 				return 0;
 			}
 
@@ -186,7 +190,6 @@ export default function (agenda) {
 		const blobs = await ApiClient.getBlobs({state: BLOB_STATE.aborted});
 
 		if (blobs.length > 0) {
-			Logger.log('debug', `${blobs.length} blobs have been aborted and need to have their containers stopped`);
 			await processBlobs();
 		}
 
@@ -204,21 +207,56 @@ export default function (agenda) {
 						}
 					});
 
-					Logger.log('debug', `Stopping ${containers.length} containers because blob ${blob} state is set to ABORTED.`);
+					if (containers.length > 0) {
+						Logger.log('debug', `Stopping ${containers.length} containers because blob ${blob} state is set to ABORTED.`);
+						await stopContainers(containers);
+					}
 
-					// FTODO: CLEAN QUEUE
-
-					await Promise.all(containers.map(async container => {
-						try {
-							await docker.getContainer(container.id).stop();
-						} catch (err) {
-							Logger.log('error', err.stack);
-						}
-					}));
+					await cleanQueue(blob);
 				} catch (err) {
 					Logger.log('error', err.stack);
 				}
 			}));
+
+			async function stopContainers(containers) {
+				return Promise.all(containers.map(async container => {
+					try {
+						await docker.getContainer(container.id).stop();
+					} catch (err) {
+						Logger.log('error', err.stack);
+					}
+				}));
+			}
+
+			async function cleanQueue(blob) {
+				const profile = (await ApiClient.getBlobMetadata({id: blob})).profile;
+				const connection = await amqplib.connect(AMQP_URL);
+				const channel = await connection.createChannel();
+
+				if (await channel.checkQueue(profile)) {
+					await consume();
+				}
+
+				await channel.close();
+				await connection.close();
+
+				async function consume(tries = 0) {
+					const message = await channel.get(profile);
+
+					if (message && message.fields.routingKey === blob) {
+						await channel.nack(message, false, false);
+
+						return consume();
+					}
+
+					if (tries < QUEUE_MAX_MESSAGE_TRIES) {
+						await setTimeoutPromise(QUEUE_MESSAGE_WAIT_TIME);
+						return consume(tries + 1);
+					}
+
+					Logger.log('debug', `Purged queue of records related to blob ${blob} from queue`);
+				}
+			}
 		}
 	}
 
@@ -231,19 +269,19 @@ export default function (agenda) {
 			}
 		});
 
-		if (containersInfo.length > 0) {			
+		if (containersInfo.length > 0) {
 			await Promise.all(containersInfo.map(async info => {
 				try {
 					const cont = await docker.getContainer(info.id);
 
 					if (info.running) {
-						Logger.log('debug', `Stopping unhealthy container`);
+						Logger.log('debug', 'Stopping unhealthy container');
 						await cont.stop();
 					}
 
-					try {
+					try {
 						const blobMetadata = await ApiClient.getBlobMetadata({id: info.Labels.blobId});
-						
+
 						if (blobMetadata.state === BLOB_STATE.transformationInProgress) {
 							Logger.log('debug', `Setting state to TRANSFORMATION_FAILED for blob ${blobMetadata.id} because container was unhealthy.`);
 							await ApiClient.setTransformationFailed({id: blobMetadata.id, err: `Unexpected error. Container id: ${info.id}`});
@@ -263,14 +301,10 @@ export default function (agenda) {
 							});
 						} else {
 							throw err;
-						}						
-					}										
+						}
+					}
 				} catch (err) {
 					Logger.log('error', err.stack);
-				}
-
-				async function removeContainers() {
-
 				}
 			}));
 		}
@@ -297,12 +331,24 @@ export default function (agenda) {
 		getEnv(options.env).forEach(v => manifest.Env.push(v));
 
 		const cont = await docker.createContainer(manifest);
+
+		await attachToNetworks();
+
 		const info = await cont.start();
 
 		Logger.log('info', `ID of started container: ${info.id}`);
 
 		function getEnv(env = {}) {
 			return Object.keys(env).map(k => `${k}=${env[k]}`);
+		}
+
+		async function attachToNetworks() {
+			return Promise.all(CONTAINERS_NETWORKS.map(async networkName => {
+				const network = await docker.getNetwork(networkName);
+				await network.connect({
+					Container: cont.id
+				});
+			}));
 		}
 	}
 }

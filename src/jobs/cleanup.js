@@ -36,9 +36,8 @@ import {
 	API_URL, API_USERNAME, API_PASSWORD, API_CLIENT_USER_AGENT,
 	JOB_BLOBS_METADATA_CLEANUP, JOB_BLOBS_CONTENT_CLEANUP,
 	BLOBS_METADATA_TTL, BLOBS_CONTENT_TTL
-	
+
 } from '../config';
-import { listenerCount } from 'cluster';
 
 const {createLogger} = Utils;
 
@@ -49,60 +48,60 @@ export default function (agenda) {
 		url: API_URL, username: API_USERNAME, password: API_PASSWORD,
 		userAgent: API_CLIENT_USER_AGENT
 	});
-	
+
 	agenda.define(JOB_BLOBS_METADATA_CLEANUP, blobsMetadataCleanup);
 	agenda.define(JOB_BLOBS_CONTENT_CLEANUP, blobsContentCleanup);
-	
+
 	async function blobsMetadataCleanup(_, done) {
 		return blobsCleanup({
-			method: 'deleteBlob',			
+			method: 'deleteBlob',
 			ttl: humanInterval(BLOBS_METADATA_TTL),
 			callback: done,
 			message: count => `${count} blobs need to be deleted.`
 		});
 	}
-	
+
 	async function blobsContentCleanup(_, done) {
 		return blobsCleanup({
-			method: 'deleteBlobContent',			
+			method: 'deleteBlobContent',
 			ttl: humanInterval(BLOBS_CONTENT_TTL),
 			callback: done,
 			message: count => `${count} blobs need to have their content deleted.`
 		});
 	}
-	
-	async function blobsCleanup({method, message, states, ttl, callback}) {
+
+	async function blobsCleanup({method, message, ttl, callback}) {
 		const blobs = await getBlobs();
 
 		if (blobs.length > 0) {
 			Logger.log('debug', message(blobs.length));
 			await processBlobs();
 		}
-		
+
 		callback();
-		
-		async function getBlobs() {			
+
+		async function getBlobs() {
 			const states = [BLOB_STATE.processed, BLOB_STATE.aborted];
-			return await filter(await ApiClient.getBlobs({state: states}));
-			
-			async function filter(blobs, list=[]) {
+			return filter(await ApiClient.getBlobs({state: states}));
+
+			async function filter(blobs, list = []) {
 				const id = blobs.shift();
-				
-				if (id) {					
+
+				if (id) {
 					const metadata = await ApiClient.getBlobMetadata({id});
 					const modificationTime = moment(metadata.modificationTime);
-					
+
 					if (modificationTime.add(ttl).isBefore(moment())) {
 						return filter(blobs, list.concat(id));
-					}					
-					
+					}
+
 					return filter(blobs, list);
 				}
-				
-				return list;	
+
+				return list;
 			}
 		}
-		
+
 		async function processBlobs() {
 			return Promise.all(blobs.map(async blob => {
 				try {
@@ -119,7 +118,7 @@ export default function (agenda) {
 				} catch (err) {
 					if (err instanceof ApiClientError && err.status === HTTP_CODES.NotFound) {
 						Logger.log('debug', `Blob ${blob} already removed`);
-					} else {					
+					} else {
 						Logger.log('error', err.stack);
 					}
 				}
