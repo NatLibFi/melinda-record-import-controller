@@ -37,7 +37,7 @@ import {
 	AMQP_URL, QUEUE_MAX_MESSAGE_TRIES, QUEUE_MESSAGE_WAIT_TIME,
 	CONTAINER_TEMPLATE_TRANSFORMER, CONTAINER_TEMPLATE_IMPORTER,
 	JOB_BLOBS_PENDING, JOB_BLOBS_TRANSFORMED, JOB_BLOBS_ABORTED, JOB_CONTAINERS_HEALTH,
-	CONTAINERS_CONCURRENCY, IMPORTER_CONCURRENCY, API_CLIENT_USER_AGENT, CONTAINERS_NETWORKS
+	CONTAINER_CONCURRENCY, IMPORTER_CONCURRENCY, API_CLIENT_USER_AGENT, CONTAINER_NETWORK
 } from '../config';
 
 const {createLogger} = Utils;
@@ -96,7 +96,7 @@ export default function (agenda) {
 						}
 					});
 
-					return runningContainers.length < CONTAINERS_CONCURRENCY;
+					return runningContainers.length < CONTAINER_CONCURRENCY;
 				}
 			}));
 		}
@@ -149,10 +149,10 @@ export default function (agenda) {
 					}
 				})).length;
 
-				Logger.log('debug', `Running import containers for profile ${profile.name}: ${importers}/${IMPORTER_CONCURRENCY}. Running containers total: ${total}/${CONTAINERS_CONCURRENCY}`);
+				Logger.log('debug', `Running import containers for profile ${profile.name}: ${importers}/${IMPORTER_CONCURRENCY}. Running containers total: ${total}/${CONTAINER_CONCURRENCY}`);
 
 				const availImporters = IMPORTER_CONCURRENCY - importers;
-				const availTotal = CONTAINERS_CONCURRENCY - total;
+				const availTotal = CONTAINER_CONCURRENCY - total;
 
 				if (availImporters > 0 && availTotal > 0) {
 					if (availTotal >= availImporters) {
@@ -343,7 +343,7 @@ export default function (agenda) {
 		}
 
 		async function attachToNetworks() {
-			return Promise.all(CONTAINERS_NETWORKS.map(async networkName => {
+			return Promise.all(CONTAINER_NETWORK.map(async networkName => {
 				const network = await docker.getNetwork(networkName);
 				await network.connect({
 					Container: cont.id
