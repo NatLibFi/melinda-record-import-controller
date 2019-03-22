@@ -6,14 +6,14 @@
 *
 * Copyright (C) 2018-2019 University Of Helsinki (The National Library Of Finland)
 *
-* This file is part of melinda-record-import-api
+* This file is part of melinda-record-import-controller
 *
-* melinda-record-import-api program is free software: you can redistribute it and/or modify
+* melinda-record-import-controller program is free software: you can redistribute it and/or modify
 * it under the terms of the GNU Affero General Public License as
 * published by the Free Software Foundation, either version 3 of the
 * License, or (at your option) any later version.
 *
-* melinda-record-import-api is distributed in the hope that it will be useful,
+* melinda-record-import-controller is distributed in the hope that it will be useful,
 * but WITHOUT ANY WARRANTY; without even the implied warranty of
 * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 * GNU Affero General Public License for more details.
