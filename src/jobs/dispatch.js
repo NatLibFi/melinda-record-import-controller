@@ -27,17 +27,19 @@
 *
 */
 
+import moment from 'moment';
 import Docker from 'dockerode';
 import amqplib from 'amqplib';
 import {promisify} from 'util';
 import {Utils} from '@natlibfi/melinda-commons';
-import {BLOB_STATE, HTTP_CODES, createApiClient, ApiClientError} from '@natlibfi/melinda-record-import-commons';
+import {BLOB_STATE, createApiClient, ApiError} from '@natlibfi/melinda-record-import-commons';
 import {
 	API_URL, API_USERNAME, API_PASSWORD,
 	AMQP_URL, QUEUE_MAX_MESSAGE_TRIES, QUEUE_MESSAGE_WAIT_TIME,
 	CONTAINER_TEMPLATE_TRANSFORMER, CONTAINER_TEMPLATE_IMPORTER,
 	JOB_BLOBS_PENDING, JOB_BLOBS_TRANSFORMED, JOB_BLOBS_ABORTED, JOB_CONTAINERS_HEALTH,
-	CONTAINER_CONCURRENCY, IMPORTER_CONCURRENCY, API_CLIENT_USER_AGENT, CONTAINER_NETWORK
+	CONTAINER_CONCURRENCY, IMPORTER_CONCURRENCY, API_CLIENT_USER_AGENT,
+	CONTAINER_NETWORK, IMPORT_OFFLINE_PERIOD
 } from '../config';
 
 const {createLogger} = Utils;
@@ -57,7 +59,7 @@ export default function (agenda) {
 	agenda.define(JOB_CONTAINERS_HEALTH, containersHealth);
 
 	async function blobsPending(_, done) {
-		const blobs = await ApiClient.getBlobs({state: BLOB_STATE.pending});
+		const blobs = await ApiClient.getBlobs({state: BLOB_STATE.PENDING_TRANSFORMATION});
 
 		if (blobs.length > 0) {
 			Logger.log('debug', `${blobs.length} blobs are pending transformation.`);
@@ -104,7 +106,7 @@ export default function (agenda) {
 
 	async function blobsTransformed(_, done) {
 		try {
-			const blobs = await ApiClient.getBlobs({state: BLOB_STATE.transformed});
+			const blobs = await ApiClient.getBlobs({state: BLOB_STATE.TRANSFORMED});
 
 			if (blobs.length > 0) {
 				Logger.log('debug', `${blobs.length} blobs have records waiting to be imported.`);
@@ -124,13 +126,37 @@ export default function (agenda) {
 				const dispatchCount = await getDispatchCount(profile);
 
 				if (dispatchCount > 0) {
-					Logger.log('debug', `Dispatching ${dispatchCount} import containers for blob ${blob}`);
-					await dispatchImporters(dispatchCount, profile);
+					if (isOfflinePeriod()) {
+						Logger.log('debug', 'Not dispatching importers during offline period');
+					} else {
+						Logger.log('debug', `Dispatching ${dispatchCount} import containers for blob ${blob}`);
+						await dispatchImporters(dispatchCount, profile);
+					}
 				} else {
 					Logger.log('warn', `Cannot dispatch importer containers for blob ${blob}. Maximum number of containers exhausted.`);
 				}
 
 				return processBlobs(blobs);
+			}
+
+			async function isOfflinePeriod() {
+				const {startHour, lengthHours} = IMPORT_OFFLINE_PERIOD;
+				const now = moment();
+
+				if (startHour !== undefined && lengthHours !== undefined) {
+					if (now.hour() < startHour) {
+						const start = moment(now).hour(startHour).subtract(1, 'days');
+						return check(start);
+					}
+
+					const start = moment(now).hour(startHour);
+					return check(start);
+				}
+
+				function check(startTime) {
+					const endTime = moment(startTime).add(lengthHours, 'hours');
+					return now >= startTime && now < endTime;
+				}
 			}
 
 			async function getDispatchCount(profile) {
@@ -187,7 +213,7 @@ export default function (agenda) {
 	}
 
 	async function blobsAborted(_, done) {
-		const blobs = await ApiClient.getBlobs({state: BLOB_STATE.aborted});
+		const blobs = await ApiClient.getBlobs({state: BLOB_STATE.ABORTED});
 
 		if (blobs.length > 0) {
 			await processBlobs();
@@ -282,12 +308,12 @@ export default function (agenda) {
 					try {
 						const blobMetadata = await ApiClient.getBlobMetadata({id: info.Labels.blobId});
 
-						if (blobMetadata.state === BLOB_STATE.transformationInProgress) {
+						if (blobMetadata.state === BLOB_STATE.TRANSFORMATION_IN_PROGRESS) {
 							Logger.log('debug', `Setting state to TRANSFORMATION_FAILED for blob ${blobMetadata.id} because container was unhealthy.`);
 							await ApiClient.setTransformationFailed({id: blobMetadata.id, err: `Unexpected error. Container id: ${info.id}`});
 						}
 					} catch (err) {
-						if (err instanceof ApiClientError && err.status === HTTP_CODES.NotFound) {
+						if (err instanceof ApiError && err.status === HttpStatus.NOT_FOUND) {
 							Logger.log('debug', `Blob ${info.Labels.blobId} already removed. Removing all related containers`);
 
 							await docker.pruneContainers({

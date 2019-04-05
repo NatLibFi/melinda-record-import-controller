@@ -31,7 +31,7 @@ import {MongoClient, MongoError} from 'mongodb';
 import Agenda from 'agenda';
 import {createDispatchJob, createCleanupJob} from './jobs';
 import {
-	MONGODB_URI,
+	MONGO_URI,
 	JOB_BLOBS_PENDING, JOB_BLOBS_TRANSFORMED, JOB_BLOBS_ABORTED, JOB_CONTAINERS_HEALTH,
 	JOB_FREQ_BLOBS_PENDING, JOB_FREQ_BLOBS_TRANSFORMED, JOB_FREQ_BLOBS_ABORTED, JOB_FREQ_CONTAINERS_HEALTH,
 	JOB_BLOBS_METADATA_CLEANUP, JOB_BLOBS_CONTENT_CLEANUP,
@@ -44,7 +44,7 @@ run();
 
 async function run() {
 	const Logger = createLogger();
-	const Mongo = await MongoClient.connect(MONGODB_URI, {useNewUrlParser: true});
+	const Mongo = await MongoClient.connect(MONGO_URI, {useNewUrlParser: true});
 
 	process
 		.on('SIGINT', handleExit)

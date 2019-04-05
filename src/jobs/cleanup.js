@@ -29,9 +29,10 @@
 
 import Docker from 'dockerode';
 import moment from 'moment';
+import HttpStatus from 'http-status';
 import humanInterval from 'human-interval';
 import {Utils} from '@natlibfi/melinda-commons';
-import {BLOB_STATE, createApiClient, ApiClientError, HTTP_CODES} from '@natlibfi/melinda-record-import-commons';
+import {BLOB_STATE, createApiClient, ApiError} from '@natlibfi/melinda-record-import-commons';
 import {
 	API_URL, API_USERNAME, API_PASSWORD, API_CLIENT_USER_AGENT,
 	JOB_BLOBS_METADATA_CLEANUP, JOB_BLOBS_CONTENT_CLEANUP,
@@ -81,7 +82,7 @@ export default function (agenda) {
 		callback();
 
 		async function getBlobs() {
-			const states = [BLOB_STATE.processed, BLOB_STATE.aborted];
+			const states = [BLOB_STATE.PROCESSED, BLOB_STATE.ABORTED];
 			return filter(await ApiClient.getBlobs({state: states}));
 
 			async function filter(blobs, list = []) {
@@ -116,7 +117,7 @@ export default function (agenda) {
 						}
 					});
 				} catch (err) {
-					if (err instanceof ApiClientError && err.status === HTTP_CODES.NotFound) {
+					if (err instanceof ApiError && err.status === HttpStatus.NOT_FOUND) {
 						Logger.log('debug', `Blob ${blob} already removed`);
 					} else {
 						Logger.log('error', err.stack);
