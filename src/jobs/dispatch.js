@@ -28,6 +28,7 @@
 */
 
 import moment from 'moment';
+import HttpStatus from 'http-status';
 import Docker from 'dockerode';
 import amqplib from 'amqplib';
 import {promisify} from 'util';
@@ -39,7 +40,7 @@ import {
 	CONTAINER_TEMPLATE_TRANSFORMER, CONTAINER_TEMPLATE_IMPORTER,
 	JOB_BLOBS_PENDING, JOB_BLOBS_TRANSFORMED, JOB_BLOBS_ABORTED, JOB_CONTAINERS_HEALTH,
 	CONTAINER_CONCURRENCY, IMPORTER_CONCURRENCY, API_CLIENT_USER_AGENT,
-	CONTAINER_NETWORK, IMPORT_OFFLINE_PERIOD
+	CONTAINER_NETWORKS, IMPORT_OFFLINE_PERIOD
 } from '../config';
 
 const {createLogger} = Utils;
@@ -71,21 +72,21 @@ export default function (agenda) {
 		async function processBlobs() {
 			return Promise.all(blobs.map(async blob => {
 				try {
-					const profile = await getBlobProfile(blob);
+					const profile = await getBlobProfile(blob.id);
 					Logger.log('debug', 'Starting TRANSFORMATION container');
 
 					if (await canDispatch()) {
 						await dispatchContainer({
-							blob,
-							profile: profile.name,
+							blob: blob.id,
+							profile: profile.id,
 							options: profile.transformation,
 							template: CONTAINER_TEMPLATE_TRANSFORMER
 						});
 
-						await ApiClient.setTransformationStarted({id: blob});
-						Logger.log('info', `Transformation started for ${blob} `);
+						await ApiClient.setTransformationStarted({id: blob.id});
+						Logger.log('info', `Transformation started for ${blob.id} `);
 					} else {
-						Logger.log('warn', `Could not dispatch transformer for blob ${blob} because total number of containers is exhausted`);
+						Logger.log('warn', `Could not dispatch transformer for blob ${blob.id} because total number of containers is exhausted`);
 					}
 				} catch (err) {
 					Logger.log('error', err.stack);
@@ -122,24 +123,24 @@ export default function (agenda) {
 			const blob = blobs.shift();
 
 			if (blob) {
-				const profile = await getBlobProfile(blob);
+				const profile = await getBlobProfile(blob.id);
 				const dispatchCount = await getDispatchCount(profile);
 
 				if (dispatchCount > 0) {
 					if (isOfflinePeriod()) {
 						Logger.log('debug', 'Not dispatching importers during offline period');
 					} else {
-						Logger.log('debug', `Dispatching ${dispatchCount} import containers for blob ${blob}`);
+						Logger.log('debug', `Dispatching ${dispatchCount} import containers for blob ${blob.id}`);
 						await dispatchImporters(dispatchCount, profile);
 					}
 				} else {
-					Logger.log('warn', `Cannot dispatch importer containers for blob ${blob}. Maximum number of containers exhausted.`);
+					Logger.log('warn', `Cannot dispatch importer containers for blob ${blob.id}. Maximum number of containers exhausted.`);
 				}
 
 				return processBlobs(blobs);
 			}
 
-			async function isOfflinePeriod() {
+			function isOfflinePeriod() {
 				const {startHour, lengthHours} = IMPORT_OFFLINE_PERIOD;
 				const now = moment();
 
@@ -170,12 +171,12 @@ export default function (agenda) {
 					filters: {
 						label: [
 							'fi.nationallibrary.melinda.record-import.container-type=import-task',
-							`profile=${profile.name}`
+							`profile=${profile.id}`
 						]
 					}
 				})).length;
 
-				Logger.log('debug', `Running import containers for profile ${profile.name}: ${importers}/${IMPORTER_CONCURRENCY}. Running containers total: ${total}/${CONTAINER_CONCURRENCY}`);
+				Logger.log('debug', `Running import containers for profile ${profile.id}: ${importers}/${IMPORTER_CONCURRENCY}. Running containers total: ${total}/${CONTAINER_CONCURRENCY}`);
 
 				const availImporters = IMPORTER_CONCURRENCY - importers;
 				const availTotal = CONTAINER_CONCURRENCY - total;
@@ -195,8 +196,8 @@ export default function (agenda) {
 				return Promise.all(map(async () => {
 					try {
 						await dispatchContainer({
-							blob,
-							profile: profile.name,
+							blob: blob.id,
+							profile: profile.id,
 							options: profile.import,
 							template: CONTAINER_TEMPLATE_IMPORTER
 						});
@@ -228,17 +229,17 @@ export default function (agenda) {
 						filters: {
 							label: [
 								'fi.nationallibrary.melinda.record-import.container-type',
-								`blobId=${blob}`
+								`blobId=${blob.id}`
 							]
 						}
 					});
 
 					if (containers.length > 0) {
-						Logger.log('debug', `Stopping ${containers.length} containers because blob ${blob} state is set to ABORTED.`);
+						Logger.log('debug', `Stopping ${containers.length} containers because blob ${blob.id} state is set to ABORTED.`);
 						await stopContainers(containers);
 					}
 
-					await cleanQueue(blob);
+					await cleanQueue(blob.id);
 				} catch (err) {
 					Logger.log('error', err.stack);
 				}
@@ -280,7 +281,7 @@ export default function (agenda) {
 						return consume(tries + 1);
 					}
 
-					Logger.log('debug', `Purged queue of records related to blob ${blob} from queue`);
+					Logger.log('debug', `Purged queue of records related to blob ${blob.id} from queue`);
 				}
 			}
 		}
@@ -310,7 +311,7 @@ export default function (agenda) {
 
 						if (blobMetadata.state === BLOB_STATE.TRANSFORMATION_IN_PROGRESS) {
 							Logger.log('debug', `Setting state to TRANSFORMATION_FAILED for blob ${blobMetadata.id} because container was unhealthy.`);
-							await ApiClient.setTransformationFailed({id: blobMetadata.id, err: `Unexpected error. Container id: ${info.id}`});
+							await ApiClient.setTransformationFailed({id: blobMetadata.id, error: `Unexpected error. Container id: ${info.Id}`});
 						}
 					} catch (err) {
 						if (err instanceof ApiError && err.status === HttpStatus.NOT_FOUND) {
@@ -369,7 +370,7 @@ export default function (agenda) {
 		}
 
 		async function attachToNetworks() {
-			return Promise.all(CONTAINER_NETWORK.map(async networkName => {
+			return Promise.all(CONTAINER_NETWORKS.map(async networkName => {
 				const network = await docker.getNetwork(networkName);
 				await network.connect({
 					Container: cont.id
