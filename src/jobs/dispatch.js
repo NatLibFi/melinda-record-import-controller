@@ -86,7 +86,7 @@ export default function (agenda) {
 						await ApiClient.setTransformationStarted({id: blob.id});
 						Logger.log('info', `Transformation started for ${blob.id} `);
 					} else {
-						Logger.log('warn', `Could not dispatch transformer for blob ${blob.id} because total number of containers is exhausted`);
+						Logger.log('debug', `Could not dispatch transformer for blob ${blob.id} because total number of containers is exhausted`);
 					}
 				} catch (err) {
 					Logger.log('error', err.stack);
@@ -134,7 +134,7 @@ export default function (agenda) {
 						await dispatchImporters(dispatchCount, profile);
 					}
 				} else {
-					Logger.log('warn', `Cannot dispatch importer containers for blob ${blob.id}. Maximum number of containers exhausted.`);
+					Logger.log('debug', `Cannot dispatch importer containers for blob ${blob.id}. Maximum number of containers exhausted.`);
 				}
 
 				return processBlobs(blobs);

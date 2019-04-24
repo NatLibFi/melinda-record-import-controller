@@ -86,14 +86,14 @@ export default function (agenda) {
 			return filter(await ApiClient.getBlobs({state: states}));
 
 			async function filter(blobs, list = []) {
-				const id = blobs.shift();
+				const blob = blobs.shift();
 
-				if (id) {
-					const metadata = await ApiClient.getBlobMetadata({id});
+				if (blob) {
+					const metadata = await ApiClient.getBlobMetadata({id: blob.id});
 					const modificationTime = moment(metadata.modificationTime);
 
 					if (modificationTime.add(ttl).isBefore(moment())) {
-						return filter(blobs, list.concat(id));
+						return filter(blobs, list.concat(blob.id));
 					}
 
 					return filter(blobs, list);
@@ -106,19 +106,19 @@ export default function (agenda) {
 		async function processBlobs() {
 			return Promise.all(blobs.map(async blob => {
 				try {
-					await ApiClient[method]({id: blob});
+					await ApiClient[method]({id: blob.id});
 					await docker.pruneContainers({
 						all: true,
 						filters: {
 							label: [
 								'fi.nationallibrary.melinda.record-import.container-type',
-								`blobId=${blob}`
+								`blobId=${blob.id}`
 							]
 						}
 					});
 				} catch (err) {
 					if (err instanceof ApiError && err.status === HttpStatus.NOT_FOUND) {
-						Logger.log('debug', `Blob ${blob} already removed`);
+						Logger.log('debug', `Blob ${blob.id} already removed`);
 					} else {
 						Logger.log('error', err.stack);
 					}
