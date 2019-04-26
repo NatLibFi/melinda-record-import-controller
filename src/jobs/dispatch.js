@@ -89,7 +89,7 @@ export default function (agenda) {
 						Logger.log('debug', `Could not dispatch transformer for blob ${blob.id} because total number of containers is exhausted`);
 					}
 				} catch (err) {
-					Logger.log('error', err.stack);
+					logError(err);
 				}
 
 				async function canDispatch() {
@@ -202,7 +202,7 @@ export default function (agenda) {
 							template: CONTAINER_TEMPLATE_IMPORTER
 						});
 					} catch (err) {
-						Logger.log('error', err.stack);
+						logError(err);
 					}
 				}));
 
@@ -241,7 +241,7 @@ export default function (agenda) {
 
 					await cleanQueue(blob.id);
 				} catch (err) {
-					Logger.log('error', err.stack);
+					logError(err);
 				}
 			}));
 
@@ -250,7 +250,7 @@ export default function (agenda) {
 					try {
 						await docker.getContainer(container.id).stop();
 					} catch (err) {
-						Logger.log('error', err.stack);
+						logError(err);
 					}
 				}));
 			}
@@ -331,7 +331,7 @@ export default function (agenda) {
 						}
 					}
 				} catch (err) {
-					Logger.log('error', err.stack);
+					logError(err);
 				}
 			}));
 		}
@@ -408,5 +408,9 @@ export default function (agenda) {
 				}
 			});
 		}
+	}
+
+	function logError(err) {
+		Logger.log('error', 'stack' in err ? err.stack : err);
 	}
 }
