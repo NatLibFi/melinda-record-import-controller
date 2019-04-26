@@ -357,6 +357,8 @@ export default function (agenda) {
 
 		getEnv(options.env).forEach(v => manifest.Env.push(v));
 
+		await updateImage();
+
 		const cont = await docker.createContainer(manifest);
 
 		await attachToNetworks();
@@ -376,6 +378,35 @@ export default function (agenda) {
 					Container: cont.id
 				});
 			}));
+		}
+
+		async function updateImage() {
+			Logger.log('debug', `Checking if ${options.image} has been updated in the registry`);
+			const stream = await docker.pull(options.image);
+
+			return new Promise((resolve, reject) => {
+				let pullingImage;
+				docker.modem.followProgress(stream, finishCallback, progressCallback);
+
+				function finishCallback(err) {
+					if (err) {
+						reject(err);
+					} else {
+						resolve();
+					}
+				}
+
+				function progressCallback(event) {
+					if (/^Status: Image is up to date/.test(event.status)) {
+						Logger.log('debug', `Image ${options.image} is up to date`);
+					} else if (/^Status: Downloaded newer image/.test(event.status)) {
+						Logger.log('info', `Completed dowloading new version of ${options.image}`);
+					} else if (/^Pulling fs layer/.test(event.status) && !pullingImage) {
+						Logger.log('info', `Image ${options.image} has been updated in the registry. Pulling new version`);
+						pullingImage = true;
+					}
+				}
+			});
 		}
 	}
 }
