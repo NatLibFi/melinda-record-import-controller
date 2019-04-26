@@ -69,6 +69,7 @@ export const JOB_BLOBS_CONTENT_CLEANUP = 'BLOBS_CONTENT_CLEANUP';
 export const JOB_BLOBS_METADATA_CLEANUP = 'BLOBS_METADATA_CLEANUP';
 
 export const CONTAINER_TEMPLATE_TRANSFORMER = {
+	Binds: ['/etc/localtime:/etc/localtime:ro'],
 	Labels: {
 		'fi.nationallibrary.melinda.record-import.task': 'true',
 		'fi.nationallibrary.melinda.record-import.container-type': 'transform-task'
@@ -90,6 +91,7 @@ export const CONTAINER_TEMPLATE_TRANSFORMER = {
 };
 
 export const CONTAINER_TEMPLATE_IMPORTER = {
+	Binds: ['/etc/localtime:/etc/localtime:ro'],
 	Labels: {
 		'fi.nationallibrary.melinda.record-import.task': 'true',
 		'fi.nationallibrary.melinda.record-import.container-type': 'import-task'
