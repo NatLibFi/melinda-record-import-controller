@@ -367,7 +367,7 @@ export default function (agenda) {
 
 		const info = await cont.start();
 
-		Logger.log('info', `ID of started ${type} container: ${info.id}`);
+		Logger.log('debug', `ID of started ${type} container: ${info.id}`);
 
 		function getEnv(env = {}) {
 			return Object.keys(env).map(k => `${k}=${env[k]}`);
