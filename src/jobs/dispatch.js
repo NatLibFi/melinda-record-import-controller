@@ -77,6 +77,7 @@ export default function (agenda) {
 
 					if (await canDispatch()) {
 						await dispatchContainer({
+							type: 'transformation',
 							blob: blob.id,
 							profile: profile.id,
 							options: profile.transformation,
@@ -196,6 +197,7 @@ export default function (agenda) {
 				return Promise.all(map(async () => {
 					try {
 						await dispatchContainer({
+							type: 'import',
 							blob: blob.id,
 							profile: profile.id,
 							options: profile.import,
@@ -344,7 +346,7 @@ export default function (agenda) {
 		return ApiClient.getProfile({id: metadata.profile});
 	}
 
-	async function dispatchContainer({blob, profile, options, template}) {
+	async function dispatchContainer({type, blob, profile, options, template}) {
 		const manifest = {
 			Image: options.image,
 			...template
@@ -365,7 +367,7 @@ export default function (agenda) {
 
 		const info = await cont.start();
 
-		Logger.log('info', `ID of started container: ${info.id}`);
+		Logger.log('info', `ID of started ${type} container: ${info.id}`);
 
 		function getEnv(env = {}) {
 			return Object.keys(env).map(k => `${k}=${env[k]}`);
