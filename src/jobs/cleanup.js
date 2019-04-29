@@ -119,7 +119,8 @@ export default function (agenda) {
 				} catch (err) {
 					if (err instanceof ApiError && err.status === HttpStatus.NOT_FOUND) {
 						Logger.log('debug', `Blob ${blob.id} already removed`);
-					} else {
+					// Conflict occurs when prune operation is already running and can be
+					} else if (err.status !== HttpStatus.CONFLICT) {
 						Logger.log('error', err.stack);
 					}
 				}
