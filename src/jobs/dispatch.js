@@ -283,7 +283,7 @@ export default function (agenda) {
 						return consume(tries + 1);
 					}
 
-					Logger.log('debug', `Purged queue of records related to blob ${blob.id} from queue`);
+					Logger.log('debug', `Purged queue of records related to blob ${blob}`);
 				}
 			}
 		}

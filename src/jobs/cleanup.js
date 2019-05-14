@@ -106,20 +106,20 @@ export default function (agenda) {
 		async function processBlobs() {
 			return Promise.all(blobs.map(async blob => {
 				try {
-					await ApiClient[method]({id: blob.id});
+					await ApiClient[method]({id: blob});
 					await docker.pruneContainers({
 						all: true,
 						filters: {
 							label: [
 								'fi.nationallibrary.melinda.record-import.container-type',
-								`blobId=${blob.id}`
+								`blobId=${blob}`
 							]
 						}
 					});
 				} catch (err) {
 					if (err instanceof ApiError && err.status === HttpStatus.NOT_FOUND) {
-						Logger.log('debug', `Blob ${blob.id} already removed`);
-					// Conflict occurs when prune operation is already running and can be
+						Logger.log('debug', `Blob ${blob} already removed`);
+					// Conflict occurs when prune operation is already running and can be ignored
 					} else if (err.status !== HttpStatus.CONFLICT) {
 						Logger.log('error', err.stack);
 					}
