@@ -319,15 +319,23 @@ export default function (agenda) {
 						if (err instanceof ApiError && err.status === HttpStatus.NOT_FOUND) {
 							Logger.log('debug', `Blob ${info.Labels.blobId} already removed. Removing all related containers`);
 
-							await docker.pruneContainers({
-								all: true,
-								filters: {
-									label: [
-										'fi.nationallibrary.melinda.record-import.container-type',
-										`blobId=${info.Labels.blobId}`
-									]
+							try {
+								await docker.pruneContainers({
+									all: true,
+									filters: {
+										label: [
+											'fi.nationallibrary.melinda.record-import.container-type',
+											`blobId=${info.Labels.blobId}`
+										]
+									}
+								});
+							} catch (pruneErr) {
+								if (pruneErr.statusCode !== HttpStatus.CONFLICT) {
+									console.log(err);
+									Logger.log('error', err.stack);
+									throw pruneErr;
 								}
-							});
+							}
 						} else {
 							throw err;
 						}
