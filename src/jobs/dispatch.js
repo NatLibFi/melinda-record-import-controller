@@ -87,7 +87,7 @@ export default function (agenda) {
 						await ApiClient.setTransformationStarted({id: blob.id});
 						Logger.log('info', `Transformation started for ${blob.id} `);
 					} else {
-						Logger.log('debug', `Could not dispatch transformer for blob ${blob.id} because total number of containers is exhausted`);
+						Logger.log('warn', `Could not dispatch transformer for blob ${blob.id} because total number of containers is exhausted`);
 					}
 				} catch (err) {
 					logError(err);
@@ -331,7 +331,6 @@ export default function (agenda) {
 								});
 							} catch (pruneErr) {
 								if (pruneErr.statusCode !== HttpStatus.CONFLICT) {
-									console.log(err);
 									Logger.log('error', err.stack);
 									throw pruneErr;
 								}

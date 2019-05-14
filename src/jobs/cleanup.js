@@ -118,11 +118,13 @@ export default function (agenda) {
 					});
 				} catch (err) {
 					if (err instanceof ApiError && err.status === HttpStatus.NOT_FOUND) {
-						Logger.log('debug', `Blob ${blob} already removed`);
+						if (method !== 'deleteBlobContent') {
+							Logger.log('debug', `Blob ${blob} already removed`);
+						}
 					// Conflict occurs when prune operation is already running and can be ignored
 					} else if (err.statusCode !== HttpStatus.CONFLICT) {
-						console.log(err);
 						Logger.log('error', err.stack);
+	
 					}
 				}
 			}));
