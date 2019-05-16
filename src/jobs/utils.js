@@ -27,6 +27,33 @@
 *
 */
 
-export {default as createCleanupJob} from './cleanup';
-export {default as createDispatchJob} from './dispatch';
-export {default as createImagesJob} from './images';
+import Docker from 'dockerode';
+import {Utils} from '@natlibfi/melinda-commons';
+
+const {createLogger} = Utils;
+
+export async function stopContainers(filters) {
+	const logger = createLogger();
+	const docker = new Docker();
+	const containersInfo = await docker.listContainers(filters);
+
+	if (containersInfo.length > 0) {
+		await Promise.all(containersInfo.map(async info => {
+			try {
+				const cont = await docker.getContainer(info.id);
+
+				if (info.running) {
+					logger.log('debug', 'Stopping container');
+					await cont.stop();
+				}
+			} catch (err) {
+				logError(err);
+			}
+		}));
+	}
+}
+
+export function logError(err) {
+	const logger = createLogger();
+	logger.log('error', 'stack' in err ? err.stack : err);
+}

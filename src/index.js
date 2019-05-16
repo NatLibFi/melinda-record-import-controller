@@ -29,13 +29,15 @@
 import {Utils} from '@natlibfi/melinda-commons';
 import {MongoClient, MongoError} from 'mongodb';
 import Agenda from 'agenda';
-import {createDispatchJob, createCleanupJob} from './jobs';
+import {createDispatchJob, createCleanupJob, createImagesJob} from './jobs';
 import {
 	MONGO_URI,
-	JOB_BLOBS_PENDING, JOB_BLOBS_TRANSFORMED, JOB_BLOBS_ABORTED, JOB_CONTAINERS_HEALTH,
-	JOB_FREQ_BLOBS_PENDING, JOB_FREQ_BLOBS_TRANSFORMED, JOB_FREQ_BLOBS_ABORTED, JOB_FREQ_CONTAINERS_HEALTH,
+	JOB_BLOBS_PENDING, JOB_BLOBS_TRANSFORMED, JOB_BLOBS_ABORTED,
 	JOB_BLOBS_METADATA_CLEANUP, JOB_BLOBS_CONTENT_CLEANUP,
-	JOB_FREQ_BLOBS_METADATA_CLEANUP, JOB_FREQ_BLOBS_CONTENT_CLEANUP
+	JOB_CONTAINERS_HEALTH, JOB_QUEUE_CLEANUP, JOB_PRUNE_CONTAINERS, JOB_UPDATE_IMAGES,
+	JOB_FREQ_BLOBS_PENDING, JOB_FREQ_BLOBS_TRANSFORMED, JOB_FREQ_BLOBS_ABORTED,
+	JOB_FREQ_CONTAINERS_HEALTH, JOB_FREQ_PRUNE_CONTAINERS, JOB_FREQ_UPDATE_IMAGES,
+	JOB_FREQ_BLOBS_METADATA_CLEANUP, JOB_FREQ_BLOBS_CONTENT_CLEANUP, JOB_FREQ_QUEUE_CLEANUP
 } from './config';
 
 const {createLogger, handleInterrupt} = Utils;
@@ -59,11 +61,21 @@ async function run() {
 	agenda.on('ready', () => {
 		createDispatchJob(agenda);
 		createCleanupJob(agenda);
+		createImagesJob(agenda);
 
 		agenda.every(JOB_FREQ_BLOBS_PENDING, JOB_BLOBS_PENDING);
 		agenda.every(JOB_FREQ_BLOBS_TRANSFORMED, JOB_BLOBS_TRANSFORMED);
 		agenda.every(JOB_FREQ_BLOBS_ABORTED, JOB_BLOBS_ABORTED);
 		agenda.every(JOB_FREQ_CONTAINERS_HEALTH, JOB_CONTAINERS_HEALTH);
+
+		agenda.every(JOB_FREQ_QUEUE_CLEANUP, JOB_QUEUE_CLEANUP);
+		agenda.every(JOB_FREQ_UPDATE_IMAGES, JOB_UPDATE_IMAGES);
+
+		if (JOB_FREQ_PRUNE_CONTAINERS === 'never') {
+			Logger.log('info', `Job ${JOB_PRUNE_CONTAINERS} is disabled`);
+		} else {
+			agenda.every(JOB_FREQ_PRUNE_CONTAINERS, JOB_PRUNE_CONTAINERS);
+		}
 
 		if (JOB_FREQ_BLOBS_METADATA_CLEANUP === 'never') {
 			Logger.log('info', `Job ${JOB_BLOBS_METADATA_CLEANUP} is disabled`);

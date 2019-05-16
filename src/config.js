@@ -37,9 +37,6 @@ export const API_PASSWORD = readEnvironmentVariable('API_PASSWORD');
 export const MONGO_URI = readEnvironmentVariable('MONGO_URI', {defaultValue: 'mongodb://127.0.0.1/db'});
 export const AMQP_URL = readEnvironmentVariable('AMQP_URL', {defaultValue: 'amqp://127.0.0.1:5672'});
 
-export const QUEUE_MAX_MESSAGE_TRIES = readEnvironmentVariable('QUEUE_MAX_MESSAGE_TRIES', {defaultValue: 3, format: v => Number(v)});
-export const QUEUE_MESSAGE_WAIT_TIME = readEnvironmentVariable('QUEUE_MESSAGE_WAIT_TIME', {defaultValue: 3000, format: v => Number(v)});
-
 export const IMPORTER_CONCURRENCY = readEnvironmentVariable('IMPORTER_CONCURRENCY', {defaultValue: 1, format: v => Number(v)});
 export const CONTAINER_CONCURRENCY = readEnvironmentVariable('CONTAINER_CONCURRENCY', {defaultValue: 5, format: v => Number(v)});
 
@@ -51,10 +48,14 @@ export const BLOBS_CONTENT_TTL = readEnvironmentVariable('BLOB_CONTENT_TTL');
 export const JOB_FREQ_BLOBS_PENDING = readEnvironmentVariable('JOB_FREQ_BLOBS_PENDING', {defaultValue: '10 seconds'});
 export const JOB_FREQ_BLOBS_TRANSFORMED = readEnvironmentVariable('JOB_FREQ_BLOBS_TRANSFORMED', {defaultValue: '10 seconds'});
 export const JOB_FREQ_BLOBS_ABORTED = readEnvironmentVariable('JOB_FREQ_BLOBS_ABORTED', {defaultValue: '10 seconds'});
-export const JOB_FREQ_CONTAINERS_HEALTH = readEnvironmentVariable('JOB_FREQ_CONTAINERS_HEALTH', {defaultValue: '10 seconds'});
 
 export const JOB_FREQ_BLOBS_CONTENT_CLEANUP = readEnvironmentVariable('JOB_FREQ_BLOBS_CONTENT_CLEANUP', {defaultValue: '10 seconds'});
 export const JOB_FREQ_BLOBS_METADATA_CLEANUP = readEnvironmentVariable('JOB_FREQ_BLOBS_METADATA_CLEANUP', {defaultValue: '10 seconds'});
+
+export const JOB_FREQ_QUEUE_CLEANUP = readEnvironmentVariable('JOB_FREQ_QUEUE_CLEANUP', {defaultValue: '10 seconds'});
+export const JOB_FREQ_CONTAINERS_HEALTH = readEnvironmentVariable('JOB_FREQ_CONTAINERS_HEALTH', {defaultValue: '10 seconds'});
+export const JOB_FREQ_PRUNE_CONTAINERS = readEnvironmentVariable('JOB_FREQ_PRUNE_CONTAINERS', {defaultValue: '10 seconds'});
+export const JOB_FREQ_UPDATE_IMAGES = readEnvironmentVariable('JOB_FREQ_UPDATE_IMAGES', {defaultValue: '10 seconds'});
 
 export const IMPORT_OFFLINE_PERIOD = readEnvironmentVariable('IMPORT_OFFLINE_PERIOD', {defaultValue: {}, format: JSON.parse});
 
@@ -63,10 +64,13 @@ export const API_CLIENT_USER_AGENT = readEnvironmentVariable('API_CLIENT_USER_AG
 export const JOB_BLOBS_PENDING = 'BLOBS_PENDING';
 export const JOB_BLOBS_TRANSFORMED = 'BLOBS_TRANSFORMED';
 export const JOB_BLOBS_ABORTED = 'BLOBS_ABORTED';
-export const JOB_CONTAINERS_HEALTH = 'CONTAINERS_HEALTH';
 
 export const JOB_BLOBS_CONTENT_CLEANUP = 'BLOBS_CONTENT_CLEANUP';
 export const JOB_BLOBS_METADATA_CLEANUP = 'BLOBS_METADATA_CLEANUP';
+export const JOB_QUEUE_CLEANUP = 'QUEUE_CLEANUP';
+export const JOB_CONTAINERS_HEALTH = 'CONTAINERS_HEALTH';
+export const JOB_PRUNE_CONTAINERS = 'PRUNE_CONTAINERS';
+export const JOB_UPDATE_IMAGES = 'UPDATE_IMAGES';
 
 export const CONTAINER_TEMPLATE_TRANSFORMER = {
 	Binds: ['/etc/localtime:/etc/localtime:ro'],
