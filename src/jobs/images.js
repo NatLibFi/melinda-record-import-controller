@@ -40,8 +40,7 @@ const {createLogger} = Utils;
 
 export default function (agenda) {
 	const logger = createLogger();
-	const docker = new Docker();
-	const ApiClient = createApiClient({
+	const client = createApiClient({
 		url: API_URL, username: API_USERNAME, password: API_PASSWORD,
 		userAgent: API_CLIENT_USER_AGENT
 	});
@@ -49,9 +48,16 @@ export default function (agenda) {
 	agenda.define(JOB_UPDATE_IMAGES, {concurrency: 1}, updateImages);
 
 	async function updateImages(_, done) {
+		const docker = new Docker();
+
 		try {
 			const refs = await getImageRefs();
+
+			logger.log('debug', `Checking updates for ${refs.length} images  in the registry`);
+
 			await Promise.all(refs.map(updateImage));
+
+			logger.log('debug', 'Done checking updates for images in the registry');
 		} catch (err) {
 			logError(err);
 		} finally {
@@ -59,8 +65,8 @@ export default function (agenda) {
 		}
 
 		async function getImageRefs() {
-			const results = await ApiClient.queryProfiles();			
-			const profiles = await Promise.all(results.map(ApiClient.getProfile));
+			const results = await client.queryProfiles();
+			const profiles = await Promise.all(results.map(client.getProfile));
 
 			return profiles.reduce((acc, profile) => {
 				if (!acc.includes(profile.import.image)) {
@@ -76,8 +82,6 @@ export default function (agenda) {
 		}
 
 		async function updateImage(image) {
-			logger.log('debug', `Checking if ${image} has been updated in the registry`);
-
 			const stream = await docker.pull(image);
 
 			return new Promise((resolve, reject) => {
@@ -93,9 +97,7 @@ export default function (agenda) {
 				}
 
 				function progressCallback(event) {
-					if (/^Status: Image is up to date/.test(event.status)) {
-						logger.log('debug', `Image ${image} is up to date`);
-					} else if (/^Status: Downloaded newer image/.test(event.status)) {
+					if (/^Status: Downloaded newer image/.test(event.status)) {
 						logger.log('info', `Completed dowloading new version of ${image}`);
 					} else if (/^Pulling fs layer/.test(event.status) && !pullingImage) {
 						logger.log('info', `Image ${image} has been updated in the registry. Pulling new version`);

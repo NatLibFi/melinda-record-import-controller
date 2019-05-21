@@ -37,25 +37,24 @@ import {BLOB_STATE, createApiClient, ApiError} from '@natlibfi/melinda-record-im
 import {logError, stopContainers} from './utils';
 import {
 	API_URL, API_USERNAME, API_PASSWORD, API_CLIENT_USER_AGENT, AMQP_URL,
-	JOB_BLOBS_METADATA_CLEANUP, JOB_BLOBS_CONTENT_CLEANUP, JOB_QUEUE_CLEANUP,
+	JOB_BLOBS_METADATA_CLEANUP, JOB_BLOBS_CONTENT_CLEANUP,
+	JOB_BLOBS_MISSING_RECORDS,
 	JOB_PRUNE_CONTAINERS, JOB_CONTAINERS_HEALTH,
 	BLOBS_METADATA_TTL, BLOBS_CONTENT_TTL
-
 } from '../config';
 
 const {createLogger} = Utils;
 
 export default function (agenda) {
 	const logger = createLogger();
-	const docker = new Docker();
-	const ApiClient = createApiClient({
+	const client = createApiClient({
 		url: API_URL, username: API_USERNAME, password: API_PASSWORD,
 		userAgent: API_CLIENT_USER_AGENT
 	});
 
 	agenda.define(JOB_BLOBS_METADATA_CLEANUP, {concurrency: 1}, blobsMetadataCleanup);
 	agenda.define(JOB_BLOBS_CONTENT_CLEANUP, {conccurency: 1}, blobsContentCleanup);
-	agenda.define(JOB_QUEUE_CLEANUP, {conccurency: 1}, queueCleanup);
+	agenda.define(JOB_BLOBS_MISSING_RECORDS, {concurrency: 1}, blobsMissingRecords);
 	agenda.define(JOB_PRUNE_CONTAINERS, {concurrency: 1}, pruneContainers);
 	agenda.define(JOB_CONTAINERS_HEALTH, {concurrency: 1}, containersHealth);
 
@@ -78,7 +77,13 @@ export default function (agenda) {
 	}
 
 	async function blobsCleanup({method, message, ttl, callback}) {
+		let connection;
+		let channel;
+
 		try {
+			connection = await amqplib.connect(AMQP_URL); // eslint-disable-line require-atomic-updates
+			channel = await connection.createChannel();
+
 			const blobs = await getBlobs();
 
 			if (blobs.length > 0) {
@@ -86,12 +91,20 @@ export default function (agenda) {
 				await processBlobs(blobs);
 			}
 		} finally {
+			if (channel) {
+				await channel.close();
+			}
+
+			if (connection) {
+				await connection.close();
+			}
+
 			callback();
 		}
 
 		async function getBlobs() {
 			const states = [BLOB_STATE.PROCESSED, BLOB_STATE.ABORTED];
-			return filter(await ApiClient.getBlobs({state: states}));
+			return filter(await client.getBlobs({state: states}));
 
 			async function filter(blobs, list = []) {
 				const blob = blobs.shift();
@@ -113,10 +126,16 @@ export default function (agenda) {
 		async function processBlobs(blobs) {
 			return Promise.all(blobs.map(async blob => {
 				try {
-					await ApiClient[method]({id: blob});
+					if (method === 'deleteBlob') {
+						await channel.deleteQueue(blob);
+					}
+
+					await client[method]({id: blob});
 				} catch (err) {
 					if (err instanceof ApiError && err.status === HttpStatus.NOT_FOUND) {
-						logger.log('debug', `Blob ${blob} already removed`);
+						if (method === 'deleteBlob') {
+							logger.log('debug', `Blob ${blob} already removed`);
+						}
 					} else {
 						logError(err);
 					}
@@ -132,18 +151,23 @@ export default function (agenda) {
 		}
 	}
 
-	async function queueCleanup(_, done) {
-		const blobStates = {};
+	async function blobsMissingRecords(_, done) {
 		let connection;
+		let channel;
 
 		try {
 			connection = await amqplib.connect(AMQP_URL); // eslint-disable-line require-atomic-updates
-			const profiles = (await ApiClient.queryProfiles()).map(p => p.id);
+			channel = await connection.createChannel(); // eslint-disable-line require-atomic-updates
 
-			await Promise.all(profiles.map(cleanQueue));
+			const blobs = await client.getBlobs({state: BLOB_STATE.TRANSFORMED});
+			await processBlobs(blobs);
 		} catch (err) {
 			logError(err);
 		} finally {
+			if (channel) {
+				await channel.close();
+			}
+
 			if (connection) {
 				await connection.close();
 			}
@@ -151,56 +175,27 @@ export default function (agenda) {
 			done();
 		}
 
-		async function cleanQueue(profile) {
-			const channel = await connection.createChannel();
+		async function processBlobs(blobs) {
+			const blob = blobs.shift();
 
-			await channel.assertQueue(profile, {durable: true});
-			await consume();
-			await channel.close();
+			if (blob) {
+				const {id} = blob;
+				const {processingInfo: {numberOfRecords, importResults, failedRecords}} = await client.getBlobMetadata({id});
+				const processedCount = importResults.length + failedRecords.length;
+				const {messageCount} = await channel.assertQueue(id);
 
-			async function consume(removedCount = 0) {
-				const message = await channel.get(profile);
-
-				if (message) {
-					const blob = message.fields.routingKey;
-					if (await getBlobState(blob)) {
-						// Discard message
-						await channel.nack(message, false, false);
-						return consume(removedCount + 1);
-					}
-
-					await channel.nack(message, false, true);
-					return consume(removedCount);
+				if (processedCount < numberOfRecords && messageCount === 0) {
+					logger.log('warn', `Blob ${id} is missing records from the queue`);
 				}
 
-				if (removedCount > 0) {
-					logger.log('debug', `Removed ${removedCount} records of profile ${profile} from queue`);
-				}
-
-				async function getBlobState(id) {
-					if (id in blobStates) {
-						return blobStates[id];
-					}
-
-					try {
-						const metadata = await ApiClient.getBlobMetadata({id});
-						blobStates[id] = metadata.state === BLOB_STATE.ABORTED;
-
-						return blobStates[id];
-					} catch (err) {
-						if (err instanceof ApiError && err.status === HttpStatus.NOT_FOUND) {
-							blobStates[id] = true;
-							return blobStates[id];
-						}
-
-						throw err;
-					}
-				}
+				return processBlobs(blobs);
 			}
 		}
 	}
 
 	async function pruneContainers(_, done) {
+		const docker = new Docker();
+
 		try {
 			const result = await docker.pruneContainers({
 				all: true,

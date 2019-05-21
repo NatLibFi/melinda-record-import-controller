@@ -28,16 +28,19 @@
 
 import {Utils} from '@natlibfi/melinda-commons';
 import {MongoClient, MongoError} from 'mongodb';
+// Import {MongoClient} from 'mongodb';
 import Agenda from 'agenda';
 import {createDispatchJob, createCleanupJob, createImagesJob} from './jobs';
 import {
-	MONGO_URI,
-	JOB_BLOBS_PENDING, JOB_BLOBS_TRANSFORMED, JOB_BLOBS_ABORTED,
-	JOB_BLOBS_METADATA_CLEANUP, JOB_BLOBS_CONTENT_CLEANUP,
-	JOB_CONTAINERS_HEALTH, JOB_QUEUE_CLEANUP, JOB_PRUNE_CONTAINERS, JOB_UPDATE_IMAGES,
-	JOB_FREQ_BLOBS_PENDING, JOB_FREQ_BLOBS_TRANSFORMED, JOB_FREQ_BLOBS_ABORTED,
+	MONGO_URI, TZ,
+	JOB_BLOBS_PENDING, JOB_BLOBS_TRANSFORMED, JOB_BLOBS_ABORTED, JOB_BLOBS_TRANSFORMATION_IN_PROGRESS,
+	JOB_BLOBS_METADATA_CLEANUP, JOB_BLOBS_CONTENT_CLEANUP, JOB_BLOBS_MISSING_RECORDS,
+	JOB_CONTAINERS_HEALTH, JOB_PRUNE_CONTAINERS, JOB_UPDATE_IMAGES,
+	JOB_FREQ_BLOBS_PENDING, JOB_FREQ_BLOBS_TRANSFORMED,
+	JOB_FREQ_BLOBS_ABORTED, JOB_FREQ_BLOBS_TRANSFORMATION_IN_PROGRESS,
 	JOB_FREQ_CONTAINERS_HEALTH, JOB_FREQ_PRUNE_CONTAINERS, JOB_FREQ_UPDATE_IMAGES,
-	JOB_FREQ_BLOBS_METADATA_CLEANUP, JOB_FREQ_BLOBS_CONTENT_CLEANUP, JOB_FREQ_QUEUE_CLEANUP
+	JOB_FREQ_BLOBS_METADATA_CLEANUP, JOB_FREQ_BLOBS_CONTENT_CLEANUP,
+	JOB_FREQ_BLOBS_MISSING_RECORDS
 } from './config';
 
 const {createLogger, handleInterrupt} = Utils;
@@ -56,20 +59,22 @@ async function run() {
 	await initDb();
 	const agenda = new Agenda({mongo: Mongo.db()});
 
-	Logger.log('info', 'Starting melinda-record-import-controller');
+	// Agenda.sort({nextRunAt: 1});
 
+	agenda.on('error', handleExit);
 	agenda.on('ready', () => {
+		const opts = TZ ? {timezone: TZ} : {};
+
 		createDispatchJob(agenda);
 		createCleanupJob(agenda);
 		createImagesJob(agenda);
 
-		agenda.every(JOB_FREQ_BLOBS_PENDING, JOB_BLOBS_PENDING);
-		agenda.every(JOB_FREQ_BLOBS_TRANSFORMED, JOB_BLOBS_TRANSFORMED);
-		agenda.every(JOB_FREQ_BLOBS_ABORTED, JOB_BLOBS_ABORTED);
-		agenda.every(JOB_FREQ_CONTAINERS_HEALTH, JOB_CONTAINERS_HEALTH);
-
-		agenda.every(JOB_FREQ_QUEUE_CLEANUP, JOB_QUEUE_CLEANUP);
-		agenda.every(JOB_FREQ_UPDATE_IMAGES, JOB_UPDATE_IMAGES);
+		agenda.every(JOB_FREQ_BLOBS_TRANSFORMED, JOB_BLOBS_TRANSFORMED, {}, opts);
+		agenda.every(JOB_FREQ_BLOBS_PENDING, JOB_BLOBS_PENDING, undefined, opts);
+		agenda.every(JOB_FREQ_BLOBS_ABORTED, JOB_BLOBS_ABORTED, undefined, opts);
+		agenda.every(JOB_FREQ_BLOBS_TRANSFORMATION_IN_PROGRESS, JOB_BLOBS_TRANSFORMATION_IN_PROGRESS, undefined, opts);
+		agenda.every(JOB_FREQ_CONTAINERS_HEALTH, JOB_CONTAINERS_HEALTH, undefined, opts);
+		agenda.every(JOB_FREQ_UPDATE_IMAGES, JOB_UPDATE_IMAGES, undefined, opts);
 
 		if (JOB_FREQ_PRUNE_CONTAINERS === 'never') {
 			Logger.log('info', `Job ${JOB_PRUNE_CONTAINERS} is disabled`);
@@ -89,7 +94,14 @@ async function run() {
 			agenda.every(JOB_FREQ_BLOBS_CONTENT_CLEANUP, JOB_BLOBS_CONTENT_CLEANUP);
 		}
 
+		if (JOB_FREQ_BLOBS_MISSING_RECORDS === 'never') {
+			Logger.log('info', `Job ${JOB_BLOBS_MISSING_RECORDS} is disabled`);
+		} else {
+			agenda.every(JOB_FREQ_BLOBS_MISSING_RECORDS, JOB_BLOBS_MISSING_RECORDS);
+		}
+
 		agenda.start();
+		Logger.log('info', 'Started melinda-record-import-controller');
 	});
 
 	async function initDb() {
