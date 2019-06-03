@@ -1,10 +1,11 @@
 /**
+
 *
-* @licstart  The following is the entire license notice for the JavaScript code in this file. 
+* @licstart  The following is the entire license notice for the JavaScript code in this file.
 *
 * Controller microservice of Melinda record batch import system
 *
-* Copyright (C) 2018 University Of Helsinki (The National Library Of Finland)
+* Copyright (C) 2018-2019 University Of Helsinki (The National Library Of Finland)
 *
 * This file is part of melinda-record-import-controller
 *
@@ -26,11 +27,33 @@
 *
 */
 
-/* eslint-disable no-undef, max-nested-callbacks, no-unused-expressions */
+import Docker from 'dockerode';
+import {Utils} from '@natlibfi/melinda-commons';
 
-'use strict';
+const {createLogger} = Utils;
 
-import {expect} from 'chai';
-import * as testContext from '../src/index';
+export async function stopContainers(filters) {
+	const logger = createLogger();
+	const docker = new Docker();
+	const containersInfo = await docker.listContainers(filters);
 
-describe.skip('index');
+	if (containersInfo.length > 0) {
+		await Promise.all(containersInfo.map(async info => {
+			try {
+				const cont = await docker.getContainer(info.id);
+
+				if (info.running) {
+					logger.log('debug', 'Stopping container');
+					await cont.stop();
+				}
+			} catch (err) {
+				logError(err);
+			}
+		}));
+	}
+}
+
+export function logError(err) {
+	const logger = createLogger();
+	logger.log('error', 'stack' in err ? err.stack : err);
+}
