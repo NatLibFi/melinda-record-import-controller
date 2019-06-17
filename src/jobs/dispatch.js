@@ -171,7 +171,8 @@ export default function (agenda) {
 			if (blob) {
 				if (await allRecordsProcessed()) {
 					logger.log('debug', `All records of blob ${blob.id} have been processed. Setting state to PROCESSED`);
-					return client.updateState({id: blob.id, state: BLOB_STATE.PROCESSED});
+					await client.updateState({id: blob.id, state: BLOB_STATE.PROCESSED});
+					return processBlobs({blobs, profilesExhausted});
 				}
 
 				if (profilesExhausted.includes(blob.profile)) {
@@ -202,6 +203,8 @@ export default function (agenda) {
 
 				return processBlobs({blobs, profilesExhausted});
 			}
+
+			logger.log('debug', 'All blobs checked');
 
 			async function allRecordsProcessed() {
 				const {processingInfo: {numberOfRecords, failedRecords, importResults}} = await client.getBlobMetadata({id: blob.id});
