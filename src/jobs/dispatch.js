@@ -169,9 +169,12 @@ export default function (agenda) {
 			const blob = blobs.shift();
 
 			if (blob) {
-				if (await allRecordsProcessed()) {
+				const {numberOfRecords, processedRecords, failedRecords} = blob;
+
+				if (numberOfRecords === processedRecords + failedRecords) {
 					logger.log('debug', `All records of blob ${blob.id} have been processed. Setting state to PROCESSED`);
-					return client.updateState({id: blob.id, state: BLOB_STATE.PROCESSED});
+					await client.updateState({id: blob.id, state: BLOB_STATE.PROCESSED});
+					return processBlobs({blobs, profilesExhausted});
 				}
 
 				if (profilesExhausted.includes(blob.profile)) {
@@ -203,10 +206,7 @@ export default function (agenda) {
 				return processBlobs({blobs, profilesExhausted});
 			}
 
-			async function allRecordsProcessed() {
-				const {processingInfo: {numberOfRecords, failedRecords, importResults}} = await client.getBlobMetadata({id: blob.id});
-				return numberOfRecords === failedRecords.length + importResults.length;
-			}
+			logger.log('debug', 'All blobs checked');
 
 			function isOfflinePeriod() {
 				const {startHour, lengthHours} = IMPORT_OFFLINE_PERIOD;
@@ -332,27 +332,25 @@ export default function (agenda) {
 		}
 
 		async function processBlobs(blobs) {
-			return Promise.all(blobs.map(async blob => {
+			return Promise.all(blobs.map(async ({id, numberOfRecords, modificationTime}) => {
 				try {
-					const {processingInfo: {numberOfRecords}, modificationTime} = await client.getBlobMetadata({id: blob.id});
-
 					if (numberOfRecords > 0) {
-						return client.updateState({id: blob.id, state: BLOB_STATE.TRANSFORMED});
+						return client.updateState({id, state: BLOB_STATE.TRANSFORMED});
 					}
 
 					const containers = await docker.listContainers({
 						filters: {
 							label: [
 								'fi.nationallibrary.melinda.record-import.container-type=transform-task',
-								`blobId=${blob.id}`
+								`blobId=${id}`
 							]
 						}
 					});
 
 					// Transformer was apparently terminated abruptly
 					if (containers.length === 0 && isTooOld(modificationTime)) {
-						logger.log('warn', `Blob ${blob.id} has no transformer alive. Setting state to PENDING_TRANSFORMATION`);
-						return client.updateState({id: blob.id, state: BLOB_STATE.PENDING_TRANSFORMATION});
+						logger.log('warn', `Blob ${id} has no transformer alive. Setting state to PENDING_TRANSFORMATION`);
+						return client.updateState({id, state: BLOB_STATE.PENDING_TRANSFORMATION});
 					}
 				} catch (err) {
 					logError(err);

@@ -179,9 +179,8 @@ export default function (agenda) {
 			const blob = blobs.shift();
 
 			if (blob) {
-				const {id} = blob;
-				const {processingInfo: {numberOfRecords, importResults, failedRecords}} = await client.getBlobMetadata({id});
-				const processedCount = importResults.length + failedRecords.length;
+				const {id, processedRecords, failedRecords, numberOfRecords} = blob;
+				const processedCount = processedRecords + failedRecords;
 				const {messageCount} = await channel.assertQueue(id);
 
 				if (processedCount < numberOfRecords && messageCount === 0) {
