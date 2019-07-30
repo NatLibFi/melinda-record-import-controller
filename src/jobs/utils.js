@@ -57,3 +57,29 @@ export function logError(err) {
 	const logger = createLogger();
 	logger.log('error', 'stack' in err ? err.stack : err);
 }
+
+export async function processBlobs({client, query, processCallback, messageCallback, filter = () => true}) {
+	return new Promise((resolve, reject) => {
+		let blobsTotal = 0;
+
+		const logger = createLogger();
+		const pendingProcessors = [];
+		const emitter = client.getBlobs(query);
+
+		emitter
+			.on('error', reject)
+			.on('blobs', blobs => {
+				const filteredBlobs = blobs.filter(filter);
+
+				blobsTotal += filteredBlobs.length;
+				pendingProcessors.push(processCallback(filteredBlobs));
+			})
+			.on('end', () => {
+				if (messageCallback) {
+					logger.log('debug', messageCallback(blobsTotal));
+				}
+
+				resolve(Promise.all(pendingProcessors));
+			});
+	});
+}

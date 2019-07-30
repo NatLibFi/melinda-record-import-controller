@@ -1,5 +1,4 @@
 /**
-
 *
 * @licstart  The following is the entire license notice for the JavaScript code in this file.
 *
@@ -34,7 +33,7 @@ import HttpStatus from 'http-status';
 import humanInterval from 'human-interval';
 import {Utils} from '@natlibfi/melinda-commons';
 import {BLOB_STATE, createApiClient, ApiError} from '@natlibfi/melinda-record-import-commons';
-import {logError, stopContainers} from './utils';
+import {logError, stopContainers, processBlobs} from './utils';
 import {
 	API_URL, API_USERNAME, API_PASSWORD, API_CLIENT_USER_AGENT, AMQP_URL,
 	JOB_BLOBS_METADATA_CLEANUP, JOB_BLOBS_CONTENT_CLEANUP,
@@ -62,8 +61,8 @@ export default function (agenda) {
 		return blobsCleanup({
 			method: 'deleteBlob',
 			ttl: humanInterval(BLOBS_METADATA_TTL),
-			callback: done,
-			message: count => `${count} blobs need to be deleted.`
+			doneCallback: done,
+			messageCallback: count => `${count} blobs need to be deleted.`
 		});
 	}
 
@@ -71,12 +70,12 @@ export default function (agenda) {
 		return blobsCleanup({
 			method: 'deleteBlobContent',
 			ttl: humanInterval(BLOBS_CONTENT_TTL),
-			callback: done,
-			message: count => `${count} blobs need to have their content deleted.`
+			doneCallback: done,
+			messageCallback: count => `${count} blobs need to have their content deleted.`
 		});
 	}
 
-	async function blobsCleanup({method, message, ttl, callback}) {
+	async function blobsCleanup({method, ttl, doneCallback, messageCallback}) {
 		let connection;
 		let channel;
 
@@ -84,12 +83,14 @@ export default function (agenda) {
 			connection = await amqplib.connect(AMQP_URL); // eslint-disable-line require-atomic-updates
 			channel = await connection.createChannel();
 
-			const blobs = await getBlobs();
-
-			if (blobs.length > 0) {
-				logger.log('debug', message(blobs.length));
-				await processBlobs(blobs);
-			}
+			await processBlobs({
+				client, processCallback, messageCallback,
+				query: {state: [BLOB_STATE.PROCESSED, BLOB_STATE.ABORTED]},
+				filter: blob => {
+					const modificationTime = moment(blob.modificationTime);
+					return modificationTime.add(ttl).isBefore(moment());
+				}
+			});
 		} finally {
 			if (channel) {
 				await channel.close();
@@ -99,42 +100,21 @@ export default function (agenda) {
 				await connection.close();
 			}
 
-			callback();
+			doneCallback();
 		}
 
-		async function getBlobs() {
-			const states = [BLOB_STATE.PROCESSED, BLOB_STATE.ABORTED];
-			return filter(await client.getBlobs({state: states}));
-
-			async function filter(blobs, list = []) {
-				const blob = blobs.shift();
-
-				if (blob) {
-					const modificationTime = moment(blob.modificationTime);
-
-					if (modificationTime.add(ttl).isBefore(moment())) {
-						return filter(blobs, list.concat(blob.id));
-					}
-
-					return filter(blobs, list);
-				}
-
-				return list;
-			}
-		}
-
-		async function processBlobs(blobs) {
-			return Promise.all(blobs.map(async blob => {
+		async function processCallback(blobs) {
+			return Promise.all(blobs.map(async ({id}) => {
 				try {
 					if (method === 'deleteBlob') {
-						await channel.deleteQueue(blob);
+						await channel.deleteQueue(id);
 					}
 
-					await client[method]({id: blob});
+					await client[method]({id});
 				} catch (err) {
 					if (err instanceof ApiError && err.status === HttpStatus.NOT_FOUND) {
 						if (method === 'deleteBlob') {
-							logger.log('debug', `Blob ${blob} already removed`);
+							logger.log('debug', `Blob ${id} already removed`);
 						}
 					} else {
 						logError(err);
@@ -143,7 +123,7 @@ export default function (agenda) {
 					await stopContainers({
 						label: [
 							'fi.nationallibrary.melinda.record-import.container-type',
-							`blobId=${blob}`
+							`blobId=${id}`
 						]
 					});
 				}
@@ -159,8 +139,10 @@ export default function (agenda) {
 			connection = await amqplib.connect(AMQP_URL); // eslint-disable-line require-atomic-updates
 			channel = await connection.createChannel(); // eslint-disable-line require-atomic-updates
 
-			const blobs = await client.getBlobs({state: BLOB_STATE.TRANSFORMED});
-			await processBlobs(blobs);
+			await processBlobs({
+				client, processCallback,
+				query: {state: BLOB_STATE.TRANSFORMED}
+			});
 		} catch (err) {
 			logError(err);
 		} finally {
@@ -175,7 +157,7 @@ export default function (agenda) {
 			done();
 		}
 
-		async function processBlobs(blobs) {
+		async function processCallback(blobs) {
 			const blob = blobs.shift();
 
 			if (blob) {
@@ -187,7 +169,7 @@ export default function (agenda) {
 					logger.log('warn', `Blob ${id} is missing records from the queue`);
 				}
 
-				return processBlobs(blobs);
+				return processCallback(blobs);
 			}
 		}
 	}

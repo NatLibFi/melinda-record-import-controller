@@ -31,14 +31,14 @@ import moment from 'moment';
 import Docker from 'dockerode';
 import {Utils} from '@natlibfi/melinda-commons';
 import {BLOB_STATE, createApiClient} from '@natlibfi/melinda-record-import-commons';
-import {logError, stopContainers} from './utils';
+import {logError, stopContainers, processBlobs} from './utils';
 import {
 	API_URL, API_USERNAME, API_PASSWORD,
 	CONTAINER_TEMPLATE_TRANSFORMER, CONTAINER_TEMPLATE_IMPORTER,
 	JOB_BLOBS_PENDING, JOB_BLOBS_TRANSFORMED, JOB_BLOBS_ABORTED, JOB_BLOBS_TRANSFORMATION_IN_PROGRESS,
 	CONTAINER_CONCURRENCY, IMPORTER_CONCURRENCY, API_CLIENT_USER_AGENT,
-	CONTAINER_NETWORKS, IMPORT_OFFLINE_PERIOD, PROCESS_START_TIME,
-	STALE_TRANSFORMATION_PROGRESS_TTL, STALE_TRANSFORMED_TTL, MAX_BLOB_IMPORT_TRIES
+	CONTAINER_NETWORKS, IMPORT_OFFLINE_PERIOD,
+	STALE_TRANSFORMATION_PROGRESS_TTL
 } from '../config';
 
 const {createLogger} = Utils;
@@ -59,38 +59,36 @@ export default function (agenda) {
 		const docker = new Docker();
 
 		try {
-			const blobs = await client.getBlobs({state: BLOB_STATE.PENDING_TRANSFORMATION});
-			blobs.sort(blobsCreationTimeSort);
-
-			if (blobs.length > 0) {
-				logger.log('debug', `${blobs.length} blobs are pending transformation.`);
-				await processBlobs(blobs);
-			}
+			await processBlobs({
+				client, processCallback,
+				query: {state: BLOB_STATE.PENDING_TRANSFORMATION},
+				messageCallback: count => `${count} blobs are pending transformation`
+			});
 		} finally {
 			done();
 		}
 
-		async function processBlobs(blobs) {
+		async function processCallback(blobs) {
 			const profileCache = {};
 
-			return Promise.all(blobs.map(async blob => {
+			return Promise.all(blobs.map(async ({id, profile: profileId}) => {
 				try {
-					const profile = await getProfile(blob.profile, profileCache);
+					const {transformation: transformationOptions} = await getProfile(profileId, profileCache);
 
 					if (await canDispatch()) {
 						await dispatchContainer({
 							docker,
 							type: 'transformation',
-							blob: blob.id,
-							profile: profile.id,
-							options: profile.transformation,
+							blob: id,
+							profile: profileId,
+							options: transformationOptions,
 							template: CONTAINER_TEMPLATE_TRANSFORMER
 						});
 
-						await client.updateState({id: blob.id, state: BLOB_STATE.TRANSFORMATION_IN_PROGRESS});
-						logger.log('info', `Transformation started for ${blob.id} `);
+						await client.updateState({id, state: BLOB_STATE.TRANSFORMATION_IN_PROGRESS});
+						logger.log('info', `Transformation started for ${id} `);
 					} else {
-						logger.log('warn', `Could not dispatch transformer for blob ${blob.id} because total number of containers is exhausted`);
+						logger.log('warn', `Could not dispatch transformer for blob ${id} because total number of containers is exhausted`);
 					}
 				} catch (err) {
 					logError(err);
@@ -114,177 +112,149 @@ export default function (agenda) {
 		const docker = new Docker();
 
 		try {
-			const blobs = (await client.getBlobs({state: BLOB_STATE.TRANSFORMED}))
-				.sort(blobsCreationTimeSort)
-				.sort(blobsStalenessSort);
-
-			if (blobs.length > 0) {
-				cleanTryCount(blobs);
-				logger.log('debug', `${blobs.length} blobs have records waiting to be imported.`);
-				await processBlobs({blobs});
-			}
+			await processBlobs({
+				client, processCallback,
+				query: {state: BLOB_STATE.TRANSFORMED},
+				messageCallback: count => `${count} blobs have records waiting to be imported`
+			});
 		} catch (err) {
 			logError(err);
 		} finally {
 			done();
 		}
 
-		function cleanTryCount(blobs) {
-			Object.keys(blobsTryCount).forEach(id => {
-				if (blobs.some(blob => blob.id === id)) {
+		async function processCallback(blobs) {
+			Object.keys(blobsTryCount).forEach(({id}) => {
+				if (blobs.some(({id: otherId}) => otherId === id)) {
 					return;
 				}
 
 				delete blobsTryCount[id];
 			});
-		}
 
-		function blobsStalenessSort(a, b) {
-			const aIsStale = isStale(a);
-			const bIsStale = isStale(b);
+			doProcessing({blobs});
 
-			if (aIsStale && bIsStale) {
-				return 0;
-			}
+			async function doProcessing({blobs, profilesExhausted = []}) {
+				const blob = blobs.shift();
 
-			if (aIsStale) {
-				return 1;
-			}
+				if (blob) {
+					const {numberOfRecords, processedRecords, failedRecords, id, profile: profileId} = blob;
 
-			if (bIsStale) {
-				return -1;
-			}
-
-			function isStale({id, modificationTime}) {
-				const tryCount = id in blobsTryCount ? blobsTryCount[id] : 0;
-				return tryCount > MAX_BLOB_IMPORT_TRIES && isTooOld();
-
-				function isTooOld() {
-					return PROCESS_START_TIME.diff(moment(modificationTime)) > STALE_TRANSFORMED_TTL;
-				}
-			}
-		}
-
-		async function processBlobs({blobs, profilesExhausted = []}) {
-			const blob = blobs.shift();
-
-			if (blob) {
-				const {numberOfRecords, processedRecords, failedRecords} = blob;
-
-				if (numberOfRecords === processedRecords + failedRecords) {
-					logger.log('debug', `All records of blob ${blob.id} have been processed. Setting state to PROCESSED`);
-					await client.updateState({id: blob.id, state: BLOB_STATE.PROCESSED});
-					return processBlobs({blobs, profilesExhausted});
-				}
-
-				if (profilesExhausted.includes(blob.profile)) {
-					return processBlobs({blobs, profilesExhausted});
-				}
-
-				const profile = await getProfile(blob.profile, profileCache);
-				const {dispatchCount, totalLimitAfterDispatch} = await getDispatchCount(profile);
-
-				if (dispatchCount > 0) {
-					if (isOfflinePeriod()) {
-						logger.log('debug', 'Not dispatching importers during offline period');
-					} else {
-						logger.log('debug', `Dispatching ${dispatchCount} import containers for blob ${blob.id}`);
-						await dispatchImporters({docker, dispatchCount, profile});
-
-						blobsTryCount[blob.id] = blobsTryCount[blob.id] ? blobsTryCount[blob.id] + 1 : 1;
-
-						if (totalLimitAfterDispatch <= 0) {
-							logger.log('debug', 'Not processing further blobs because total container limit is exhausted');
-							return;
-						}
+					if (numberOfRecords === processedRecords + failedRecords) {
+						logger.log('debug', `All records of blob ${id} have been processed. Setting state to PROCESSED`);
+						await client.updateState({id, state: BLOB_STATE.PROCESSED});
+						return doProcessing({blobs, profilesExhausted});
 					}
-				} else {
-					logger.log('debug', `Cannot dispatch importer containers for blob ${blob.id}. Maximum number of containers exhausted.`);
-					profilesExhausted.push(blob.profile);
+
+					if (profilesExhausted.includes(profileId)) {
+						return doProcessing({blobs, profilesExhausted});
+					}
+
+					const profile = await getProfile(profileId, profileCache);
+					const {dispatchCount, totalLimitAfterDispatch} = await getDispatchCount(profile);
+
+					if (dispatchCount > 0) {
+						if (isOfflinePeriod()) {
+							logger.log('debug', 'Not dispatching importers during offline period');
+						} else {
+							logger.log('debug', `Dispatching ${dispatchCount} import containers for blob ${id}`);
+							await dispatchImporters({id, docker, dispatchCount, profile});
+
+							blobsTryCount[id] = blobsTryCount[id] ? blobsTryCount[id] + 1 : 1;
+
+							if (totalLimitAfterDispatch <= 0) {
+								logger.log('debug', 'Not processing further blobs because total container limit is exhausted');
+								return;
+							}
+						}
+					} else {
+						logger.log('debug', `Cannot dispatch importer containers for blob ${id}. Maximum number of containers exhausted.`);
+						profilesExhausted.push(profileId);
+					}
+
+					return doProcessing({blobs, profilesExhausted});
 				}
 
-				return processBlobs({blobs, profilesExhausted});
-			}
+				logger.log('debug', 'All blobs checked');
 
-			logger.log('debug', 'All blobs checked');
+				function isOfflinePeriod() {
+					const {startHour, lengthHours} = IMPORT_OFFLINE_PERIOD;
+					const now = moment();
 
-			function isOfflinePeriod() {
-				const {startHour, lengthHours} = IMPORT_OFFLINE_PERIOD;
-				const now = moment();
+					if (startHour !== undefined && lengthHours !== undefined) {
+						if (now.hour() < startHour) {
+							const start = moment(now).hour(startHour).subtract(1, 'days');
+							return check(start);
+						}
 
-				if (startHour !== undefined && lengthHours !== undefined) {
-					if (now.hour() < startHour) {
-						const start = moment(now).hour(startHour).subtract(1, 'days');
+						const start = moment(now).hour(startHour);
 						return check(start);
 					}
 
-					const start = moment(now).hour(startHour);
-					return check(start);
+					function check(startTime) {
+						const endTime = moment(startTime).add(lengthHours, 'hours');
+						return now >= startTime && now < endTime;
+					}
 				}
 
-				function check(startTime) {
-					const endTime = moment(startTime).add(lengthHours, 'hours');
-					return now >= startTime && now < endTime;
-				}
-			}
+				async function getDispatchCount({id, import: {concurrency: importerConcurrencyOpt}}) {
+					const importerConcurrency = typeof importerConcurrencyOpt === 'number' ? importerConcurrencyOpt : IMPORTER_CONCURRENCY;
+					const total = (await docker.listContainers({
+						filters: {
+							label: ['fi.nationallibrary.melinda.record-import.container-type']
+						}
+					})).length;
 
-			async function getDispatchCount(profile) {
-				const importerConcurrency = typeof profile.import.concurrency === 'number' ? profile.import.concurrency : IMPORTER_CONCURRENCY;
-				const total = (await docker.listContainers({
-					filters: {
-						label: ['fi.nationallibrary.melinda.record-import.container-type']
-					}
-				})).length;
+					const importers = (await docker.listContainers({
+						filters: {
+							label: [
+								'fi.nationallibrary.melinda.record-import.container-type=import-task',
+								`profile=${id}`
+							]
+						}
+					})).length;
 
-				const importers = (await docker.listContainers({
-					filters: {
-						label: [
-							'fi.nationallibrary.melinda.record-import.container-type=import-task',
-							`profile=${profile.id}`
-						]
-					}
-				})).length;
+					logger.log('debug', `Running import containers for profile ${id}: ${importers}/${importerConcurrency}. Running containers total: ${total}/${CONTAINER_CONCURRENCY}`);
 
-				logger.log('debug', `Running import containers for profile ${profile.id}: ${importers}/${importerConcurrency}. Running containers total: ${total}/${CONTAINER_CONCURRENCY}`);
+					const availImporters = importerConcurrency - importers;
+					const availTotal = CONTAINER_CONCURRENCY - total;
 
-				const availImporters = importerConcurrency - importers;
-				const availTotal = CONTAINER_CONCURRENCY - total;
+					if (availImporters > 0 && availTotal > 0) {
+						if (availTotal >= availImporters) {
+							return {
+								dispatchCount: availImporters,
+								totalLimitAfterDispatch: availTotal - availImporters
+							};
+						}
 
-				if (availImporters > 0 && availTotal > 0) {
-					if (availTotal >= availImporters) {
 						return {
-							dispatchCount: availImporters,
+							dispatchCount: availImporters - availTotal,
 							totalLimitAfterDispatch: availTotal - availImporters
 						};
 					}
 
-					return {
-						dispatchCount: availImporters - availTotal,
-						totalLimitAfterDispatch: availTotal - availImporters
-					};
+					return {dispatchCount: 0};
 				}
 
-				return {dispatchCount: 0};
-			}
+				async function dispatchImporters({id, docker, dispatchCount, profile}) {
+					return Promise.all(map(async () => {
+						try {
+							await dispatchContainer({
+								docker,
+								type: 'import',
+								blob: id,
+								profile: profile.id,
+								options: profile.import,
+								template: CONTAINER_TEMPLATE_IMPORTER
+							});
+						} catch (err) {
+							logError(err);
+						}
+					}));
 
-			async function dispatchImporters({docker, dispatchCount, profile}) {
-				return Promise.all(map(async () => {
-					try {
-						await dispatchContainer({
-							docker,
-							type: 'import',
-							blob: blob.id,
-							profile: profile.id,
-							options: profile.import,
-							template: CONTAINER_TEMPLATE_IMPORTER
-						});
-					} catch (err) {
-						logError(err);
+					function map(cb) {
+						return new Array(dispatchCount).fill(0).map(cb);
 					}
-				}));
-
-				function map(cb) {
-					return new Array(dispatchCount).fill(0).map(cb);
 				}
 			}
 		}
@@ -292,22 +262,21 @@ export default function (agenda) {
 
 	async function blobsAborted(_, done) {
 		try {
-			const blobs = await client.getBlobs({state: BLOB_STATE.ABORTED});
-
-			if (blobs.length > 0) {
-				await processBlobs(blobs);
-			}
+			await processBlobs({
+				client, processCallback,
+				query: {state: BLOB_STATE.ABORTED}
+			});
 		} finally {
 			done();
 		}
 
-		async function processBlobs(blobs) {
-			return Promise.all(blobs.map(async blob => {
+		async function processCallback(blobs) {
+			return Promise.all(blobs.map(async ({id}) => {
 				try {
 					await stopContainers({
 						label: [
 							'fi.nationallibrary.melinda.record-import.container-type',
-							`blobId=${blob.id}`
+							`blobId=${id}`
 						]
 					});
 				} catch (err) {
@@ -321,17 +290,16 @@ export default function (agenda) {
 		const docker = new Docker();
 
 		try {
-			const blobs = await client.getBlobs({state: BLOB_STATE.TRANSFORMATION_IN_PROGRESS});
-
-			if (blobs.length > 0) {
-				logger.log('debug', `${blobs.length} blobs have transformation in progress`);
-				await processBlobs(blobs);
-			}
+			await processBlobs({
+				client, processCallback,
+				query: {state: BLOB_STATE.TRANSFORMATION_IN_PROGRESS},
+				messageCallback: count => `${count} blobs have transformation in progress`
+			});
 		} finally {
 			done();
 		}
 
-		async function processBlobs(blobs) {
+		async function processCallback(blobs) {
 			return Promise.all(blobs.map(async ({id, numberOfRecords, modificationTime}) => {
 				try {
 					if (numberOfRecords > 0) {
@@ -399,27 +367,12 @@ export default function (agenda) {
 		}
 	}
 
-	function blobsCreationTimeSort(a, b) {
-		const aCreationTime = moment(a.creationTime);
-		const bCreationTime = moment(b.creationTime);
-
-		if (aCreationTime.isBefore(bCreationTime)) {
-			return -1;
-		}
-
-		if (bCreationTime.isBefore(aCreationTime)) {
-			return 1;
-		}
-
-		return 0;
-	}
-
 	async function getProfile(id, cache) {
 		if (id in cache) {
 			return cache[id];
 		}
 
-		cache[id] = await client.getProfile({id});
+		cache[id] = await client.getProfile({id}); // eslint-disable-line require-atomic-updates
 		return cache[id];
 	}
 }
