@@ -51,6 +51,11 @@ async function run() {
 	const Logger = createLogger();
 	const Mongo = await MongoClient.connect(MONGO_URI, {useNewUrlParser: true});
 
+	Mongo.on('error', err => {
+		Logger.log('error', 'Error stack' in err ? err.stack : err);
+		process.exit(1);
+	});
+
 	process
 		.on('SIGINT', handleExit)
 		.on('unhandledRejection', handleExit)
