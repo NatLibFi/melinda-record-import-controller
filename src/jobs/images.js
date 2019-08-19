@@ -54,14 +54,30 @@ export default function (agenda) {
 			const refs = await getImageRefs();
 
 			logger.log('debug', `Checking updates for ${refs.length} images  in the registry`);
-
-			await Promise.all(refs.map(updateImage));
-
-			logger.log('debug', 'Done checking updates for images in the registry');
+			await checkImageRepoDigests(refs);
 		} catch (err) {
 			logError(err);
 		} finally {
 			done();
+		}
+
+		async function checkImageRepoDigests(refs) {
+			if (refs.length > 0) {
+				refs.forEach(async (image, index) => {
+					const i = image;
+					const img = docker.getImage(i);
+					const {RepoDigests} = await img.inspect();
+					if (RepoDigests !== undefined && RepoDigests.length > 0) {
+						updateImage(i);
+					}
+
+					if (index === refs.length - 1) {
+						logger.log('debug', 'Done checking updates for images in the registry');
+					}
+				});
+			} else {
+				logger.log('debug', 'Done checking updates for images in the registry');
+			}
 		}
 
 		async function getImageRefs() {
