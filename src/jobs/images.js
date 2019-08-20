@@ -55,8 +55,13 @@ export default function (agenda) {
 
 			logger.log('debug', `Checking updates for ${refs.length} images  in the registry`);
 
-			await Promise.all(refs.map(updateImage));
-
+			await Promise.all(refs.map(async ref => {
+				const image = docker.getImage(ref);
+				const {RepoDigests} = await image.inspect();
+				if (RepoDigests && RepoDigests.length > 0) {
+					updateImage(ref);
+				}
+			}));
 			logger.log('debug', 'Done checking updates for images in the registry');
 		} catch (err) {
 			logError(err);
