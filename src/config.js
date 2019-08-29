@@ -36,6 +36,10 @@ export const TZ = readEnvironmentVariable('TZ', {defaultValue: ''});
 export const API_URL = readEnvironmentVariable('API_URL');
 export const API_USERNAME = readEnvironmentVariable('API_USERNAME');
 export const API_PASSWORD = readEnvironmentVariable('API_PASSWORD');
+export const API_USERNAME_IMPORTER = readEnvironmentVariable('API_USERNAME_IMPORTER');
+export const API_PASSWORD_IMPORTER = readEnvironmentVariable('API_PASSWORD_IMPORTER');
+export const API_USERNAME_TRANSFORMER = readEnvironmentVariable('API_USERNAME_TRANSFORMER');
+export const API_PASSWORD_TRANSFORMER = readEnvironmentVariable('API_PASSWORD_TRANSFORMER');
 
 export const MONGO_URI = readEnvironmentVariable('MONGO_URI', {defaultValue: 'mongodb://127.0.0.1/db'});
 export const AMQP_URL = readEnvironmentVariable('AMQP_URL', {defaultValue: 'amqp://127.0.0.1:5672'});
@@ -95,8 +99,8 @@ export const CONTAINER_TEMPLATE_TRANSFORMER = {
 	Env: [
 		`AMQP_URL=${AMQP_URL}`,
 		`API_URL=${API_URL}`,
-		`API_USERNAME=${API_USERNAME}`,
-		`API_PASSWORD=${API_PASSWORD}`,
+		`API_USERNAME=${API_USERNAME_TRANSFORMER}`,
+		`API_PASSWORD=${API_PASSWORD_TRANSFORMER}`,
 		'ABORT_ON_INVALID_RECORDS=false',
 		`DEBUG=${process.env.DEBUG}`
 	],
@@ -117,8 +121,8 @@ export const CONTAINER_TEMPLATE_IMPORTER = {
 	Env: [
 		`AMQP_URL=${AMQP_URL}`,
 		`API_URL=${API_URL}`,
-		`API_USERNAME=${API_USERNAME}`,
-		`API_PASSWORD=${API_PASSWORD}`,
+		`API_USERNAME=${API_USERNAME_IMPORTER}`,
+		`API_PASSWORD=${API_PASSWORD_IMPORTER}`,
 		`DEBUG=${process.env.DEBUG}`
 	],
 	Healthcheck: {
