@@ -41,9 +41,8 @@ import {
 	STALE_TRANSFORMATION_PROGRESS_TTL
 } from '../config';
 
-const {createLogger} = Utils;
-
 export default function (agenda) {
+	const {createLogger, clone} = Utils;
 	const logger = createLogger();
 	const client = createApiClient({
 		url: API_URL, username: API_USERNAME, password: API_PASSWORD,
@@ -335,7 +334,7 @@ export default function (agenda) {
 	async function dispatchContainer({docker, type, blob, profile, options, template}) {
 		const manifest = {
 			Image: options.image,
-			...template
+			...clone(template)
 		};
 
 		manifest.Labels.blobId = blob;
