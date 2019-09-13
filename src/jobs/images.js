@@ -35,6 +35,7 @@ import {
 	API_URL, API_USERNAME, API_PASSWORD,
 	API_CLIENT_USER_AGENT, JOB_UPDATE_IMAGES
 } from '../config';
+import httpStatus from 'http-status';
 
 const {createLogger} = Utils;
 
@@ -64,32 +65,31 @@ export default function (agenda) {
 			}));
 			logger.log('debug', 'Done checking updates for images in the registry');
 		} catch (err) {
+			if (err.status === httpStatus.UNAUTHORIZED) {
+				logError(err);
+				process.exit(1);
+			}
+
 			logError(err);
 		} finally {
 			done();
 		}
 
 		async function getImageRefs() {
-			try {
-				const results = await client.queryProfiles();
-				const profiles = await Promise.all(results.map(client.getProfile));
+			const results = await client.queryProfiles();
+			const profiles = await Promise.all(results.map(client.getProfile));
 
-				return profiles.reduce((acc, profile) => {
-					if (!acc.includes(profile.import.image)) {
-						acc.push(profile.import.image);
-					}
+			return profiles.reduce((acc, profile) => {
+				if (!acc.includes(profile.import.image)) {
+					acc.push(profile.import.image);
+				}
 
-					if (!acc.includes(profile.transformation.image)) {
-						acc.push(profile.transformation.image);
-					}
+				if (!acc.includes(profile.transformation.image)) {
+					acc.push(profile.transformation.image);
+				}
 
-					return acc;
-				}, []);
-			} catch (err) {
-				logger.log('debug', 'Error in getImageRefs()');
-				logger.log('error', 'Error stack' in err ? err.stack : err);
-				process.exit(1);
-			}
+				return acc;
+			}, []);
 		}
 
 		async function updateImage(image) {
