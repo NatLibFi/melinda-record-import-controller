@@ -70,20 +70,26 @@ export default function (agenda) {
 		}
 
 		async function getImageRefs() {
-			const results = await client.queryProfiles();
-			const profiles = await Promise.all(results.map(client.getProfile));
+			try {
+				const results = await client.queryProfiles();
+				const profiles = await Promise.all(results.map(client.getProfile));
 
-			return profiles.reduce((acc, profile) => {
-				if (!acc.includes(profile.import.image)) {
-					acc.push(profile.import.image);
-				}
+				return profiles.reduce((acc, profile) => {
+					if (!acc.includes(profile.import.image)) {
+						acc.push(profile.import.image);
+					}
 
-				if (!acc.includes(profile.transformation.image)) {
-					acc.push(profile.transformation.image);
-				}
+					if (!acc.includes(profile.transformation.image)) {
+						acc.push(profile.transformation.image);
+					}
 
-				return acc;
-			}, []);
+					return acc;
+				}, []);
+			} catch (err) {
+				logger.log('debug', 'Error in getImageRefs()');
+				logger.log('error', 'Error stack' in err ? err.stack : err);
+				process.exit(1);
+			}
 		}
 
 		async function updateImage(image) {
