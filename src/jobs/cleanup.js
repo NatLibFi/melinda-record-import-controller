@@ -33,7 +33,7 @@ import HttpStatus from 'http-status';
 import humanInterval from 'human-interval';
 import {Utils} from '@natlibfi/melinda-commons';
 import {BLOB_STATE, createApiClient, ApiError} from '@natlibfi/melinda-record-import-commons';
-import {logError, stopContainers, processBlobs, blobsCleanup} from './utils';
+import {logError, stopContainers, processBlobs} from './utils';
 import {
 	API_URL, API_USERNAME, API_PASSWORD, API_CLIENT_USER_AGENT, AMQP_URL,
 	JOB_BLOBS_METADATA_CLEANUP, JOB_BLOBS_CONTENT_CLEANUP,
@@ -58,7 +58,7 @@ export default function (agenda) {
 	agenda.define(JOB_BLOBS_MISSING_RECORDS, {concurrency: 1}, blobsMissingRecords);
 	agenda.define(JOB_PRUNE_CONTAINERS, {concurrency: 1}, pruneContainers);
 	agenda.define(JOB_CONTAINERS_HEALTH, {concurrency: 1}, containersHealth);
-	agenda.define(JOB_BLOBS_TRANSFORMATION_QUEUE_CLEANUP, {concurrency: 1}, blobsTransformationQueueCleanup)
+	agenda.define(JOB_BLOBS_TRANSFORMATION_QUEUE_CLEANUP, {concurrency: 1}, blobsTransformationQueueCleanup);
 
 	async function blobsMetadataCleanup(_, done) {
 		return blobsCleanup({
@@ -67,7 +67,7 @@ export default function (agenda) {
 			before: true,
 			doneCallback: done,
 			messageCallback: count => `${count} blobs need to be deleted.`,
-			state:  [BLOB_STATE.PROCESSED, BLOB_STATE.ABORTED],
+			state: [BLOB_STATE.PROCESSED, BLOB_STATE.ABORTED]
 		});
 	}
 
@@ -152,6 +152,7 @@ export default function (agenda) {
 					if (before) {
 						return modificationTime.add(ttl).isBefore(moment());
 					}
+
 					return modificationTime.add(ttl).isAfter(moment());
 				}
 			});
@@ -170,9 +171,10 @@ export default function (agenda) {
 		async function processCallback(blobs) {
 			return Promise.all(blobs.map(async ({id}) => {
 				try {
-					if (method === 'deleteBlob' || method === 'reQueueBlob') {
+					if (method === 'deleteBlob' || method === 'reQueueBlob') {
 						await channel.deleteQueue(id);
 					}
+
 					if (method === 'reQueueBlob') {
 						const docker = new Docker();
 						const containers = await docker.listContainers({
@@ -183,11 +185,13 @@ export default function (agenda) {
 								]
 							}
 						});
+
 						if (containers.length === 0) {
 							logger.log('warn', `Blob ${id} has no transformer alive. Setting state to PENDING_TRANSFORMATION`);
 							client.updateState({id, state: BLOB_STATE.PENDING_TRANSFORMATION});
 						}
 					}
+
 					await client[method]({id});
 				} catch (err) {
 					if (err instanceof ApiError && err.status === HttpStatus.NOT_FOUND) {

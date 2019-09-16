@@ -31,14 +31,13 @@ import moment from 'moment';
 import Docker from 'dockerode';
 import {Utils} from '@natlibfi/melinda-commons';
 import {BLOB_STATE, createApiClient} from '@natlibfi/melinda-record-import-commons';
-import {logError, stopContainers, processBlobs, blobsCleanup} from './utils';
+import {logError, stopContainers, processBlobs} from './utils';
 import {
 	API_URL, API_USERNAME, API_PASSWORD,
 	CONTAINER_TEMPLATE_TRANSFORMER, CONTAINER_TEMPLATE_IMPORTER,
 	JOB_BLOBS_PENDING, JOB_BLOBS_TRANSFORMED, JOB_BLOBS_ABORTED, JOB_BLOBS_TRANSFORMATION_IN_PROGRESS,
 	CONTAINER_CONCURRENCY, IMPORTER_CONCURRENCY, API_CLIENT_USER_AGENT,
-	CONTAINER_NETWORKS, IMPORT_OFFLINE_PERIOD,
-	STALE_TRANSFORMATION_PROGRESS_TTL
+	CONTAINER_NETWORKS, IMPORT_OFFLINE_PERIOD
 } from '../config';
 
 export default function (agenda) {
