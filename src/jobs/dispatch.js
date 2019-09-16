@@ -31,7 +31,7 @@ import moment from 'moment';
 import Docker from 'dockerode';
 import {Utils} from '@natlibfi/melinda-commons';
 import {BLOB_STATE, createApiClient} from '@natlibfi/melinda-record-import-commons';
-import {logError, stopContainers, processBlobs} from './utils';
+import {logError, stopContainers, processBlobs, blobsCleanup} from './utils';
 import {
 	API_URL, API_USERNAME, API_PASSWORD,
 	CONTAINER_TEMPLATE_TRANSFORMER, CONTAINER_TEMPLATE_IMPORTER,
@@ -286,8 +286,6 @@ export default function (agenda) {
 	}
 
 	async function blobsTransformationInProgress(_, done) {
-		const docker = new Docker();
-
 		try {
 			await processBlobs({
 				client, processCallback,
@@ -299,33 +297,13 @@ export default function (agenda) {
 		}
 
 		async function processCallback(blobs) {
-			return Promise.all(blobs.map(async ({id, numberOfRecords, modificationTime}) => {
+			return Promise.all(blobs.map(async ({id, numberOfRecords}) => {
 				try {
 					if (numberOfRecords > 0) {
 						return client.updateState({id, state: BLOB_STATE.TRANSFORMED});
 					}
-
-					const containers = await docker.listContainers({
-						filters: {
-							label: [
-								'fi.nationallibrary.melinda.record-import.container-type=transform-task',
-								`blobId=${id}`
-							]
-						}
-					});
-
-					// Transformer was apparently terminated abruptly
-					if (containers.length === 0 && isTooOld(modificationTime)) {
-						logger.log('warn', `Blob ${id} has no transformer alive. Setting state to PENDING_TRANSFORMATION`);
-						return client.updateState({id, state: BLOB_STATE.PENDING_TRANSFORMATION});
-					}
 				} catch (err) {
 					logError(err);
-				}
-
-				function isTooOld(modificationTime) {
-					const lastUpdated = moment(modificationTime);
-					return moment().diff(lastUpdated) > STALE_TRANSFORMATION_PROGRESS_TTL;
 				}
 			}));
 		}
