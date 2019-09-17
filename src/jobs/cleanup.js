@@ -153,7 +153,7 @@ export default function (agenda) {
 						return modificationTime.add(ttl).isBefore(moment());
 					}
 
-					return modificationTime.add(ttl).isAfter(moment());
+					return moment().isAfter(modificationTime.add(ttl));
 				}
 			});
 		} finally {
