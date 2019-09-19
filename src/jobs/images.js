@@ -35,7 +35,6 @@ import {
 	API_URL, API_USERNAME, API_PASSWORD,
 	API_CLIENT_USER_AGENT, JOB_UPDATE_IMAGES
 } from '../config';
-import httpStatus from 'http-status';
 
 const {createLogger} = Utils;
 
@@ -65,11 +64,6 @@ export default function (agenda) {
 			}));
 			logger.log('debug', 'Done checking updates for images in the registry');
 		} catch (err) {
-			if (err.status === httpStatus.UNAUTHORIZED) {
-				logError(err);
-				process.exit(1);
-			}
-
 			logError(err);
 		} finally {
 			done();
