@@ -64,7 +64,6 @@ export default function (agenda) {
 		return blobsCleanup({
 			method: 'deleteBlob',
 			ttl: humanInterval(BLOBS_METADATA_TTL),
-			before: true,
 			doneCallback: done,
 			messageCallback: count => `${count} blobs need to be deleted.`,
 			state: [BLOB_STATE.PROCESSED, BLOB_STATE.ABORTED]
@@ -75,7 +74,6 @@ export default function (agenda) {
 		return blobsCleanup({
 			method: 'deleteBlobContent',
 			ttl: humanInterval(BLOBS_CONTENT_TTL),
-			before: true,
 			doneCallback: done,
 			messageCallback: count => `${count} blobs need to have their content deleted.`,
 			state: [BLOB_STATE.PROCESSED, BLOB_STATE.ABORTED]
@@ -86,7 +84,6 @@ export default function (agenda) {
 		return blobsCleanup({
 			method: 'reQueueBlob',
 			ttl: humanInterval(STALE_TRANSFORMATION_PROGRESS_TTL),
-			before: false,
 			doneCallback: done,
 			messageCallback: count => `${count} blobs need to have removed from transformation queue`,
 			state: [BLOB_STATE.TRANSFORMATION_IN_PROGRESS]
@@ -136,7 +133,7 @@ export default function (agenda) {
 		}
 	}
 
-	async function blobsCleanup({method, ttl, before, doneCallback, messageCallback, state}) {
+	async function blobsCleanup({method, ttl, doneCallback, messageCallback, state}) {
 		let connection;
 		let channel;
 
@@ -149,11 +146,11 @@ export default function (agenda) {
 				query: {state},
 				filter: blob => {
 					const modificationTime = moment(blob.modificationTime);
-					if (before) {
-						return modificationTime.add(ttl).isBefore(moment());
+					if (method === 'reQueueBlob') {
+						return moment().isAfter(modificationTime.add(ttl));
 					}
 
-					return moment().isAfter(modificationTime.add(ttl));
+					return modificationTime.add(ttl).isBefore(moment());
 				}
 			});
 		} finally {
@@ -188,8 +185,10 @@ export default function (agenda) {
 
 						if (containers.length === 0) {
 							logger.log('warn', `Blob ${id} has no transformer alive. Setting state to PENDING_TRANSFORMATION`);
-							client.updateState({id, state: BLOB_STATE.PENDING_TRANSFORMATION});
+							await client.updateState({id, state: BLOB_STATE.PENDING_TRANSFORMATION});
 						}
+
+						return true;
 					}
 
 					await client[method]({id});
@@ -202,12 +201,14 @@ export default function (agenda) {
 						logError(err);
 					}
 				} finally {
-					await stopContainers({
-						label: [
-							'fi.nationallibrary.melinda.record-import.container-type',
-							`blobId=${id}`
-						]
-					});
+					if (method !== 'reQueueBlob') {
+						await stopContainers({
+							label: [
+								'fi.nationallibrary.melinda.record-import.container-type',
+								`blobId=${id}`
+							]
+						});
+					}
 				}
 			}));
 		}
