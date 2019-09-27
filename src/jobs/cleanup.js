@@ -95,8 +95,8 @@ export default function (agenda) {
 		let channel;
 
 		try {
-			connection = await amqplib.connect(AMQP_URL); // eslint-disable-line require-atomic-updates
-			channel = await connection.createChannel(); // eslint-disable-line require-atomic-updates
+			connection = await amqplib.connect(AMQP_URL);
+			channel = await connection.createChannel();
 
 			await processBlobs({
 				client, processCallback,
@@ -138,7 +138,7 @@ export default function (agenda) {
 		let channel;
 
 		try {
-			connection = await amqplib.connect(AMQP_URL); // eslint-disable-line require-atomic-updates
+			connection = await amqplib.connect(AMQP_URL);
 			channel = await connection.createChannel();
 
 			await processBlobs({
