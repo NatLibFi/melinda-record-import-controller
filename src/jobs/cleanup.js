@@ -37,11 +37,9 @@ import {logError, stopContainers, processBlobs} from './utils';
 import {
 	API_URL, API_USERNAME, API_PASSWORD, API_CLIENT_USER_AGENT, AMQP_URL,
 	JOB_BLOBS_METADATA_CLEANUP, JOB_BLOBS_CONTENT_CLEANUP,
-	JOB_BLOBS_MISSING_RECORDS,
-	JOB_BLOBS_TRANSFORMATION_QUEUE_CLEANUP,
+	JOB_BLOBS_MISSING_RECORDS, JOB_BLOBS_TRANSFORMATION_QUEUE_CLEANUP,
 	JOB_PRUNE_CONTAINERS, JOB_CONTAINERS_HEALTH,
-	BLOBS_METADATA_TTL, BLOBS_CONTENT_TTL,
-	STALE_TRANSFORMATION_PROGRESS_TTL
+	BLOBS_METADATA_TTL, BLOBS_CONTENT_TTL, STALE_TRANSFORMATION_PROGRESS_TTL
 } from '../config';
 
 const {createLogger} = Utils;
@@ -81,6 +79,7 @@ export default function (agenda) {
 	}
 
 	async function blobsTransformationQueueCleanup(_, done) {
+		logger.log('debug', 'blobsTransformationQueueCleanup has been added to agenda');
 		return blobsCleanup({
 			method: 'reQueueBlob',
 			ttl: humanInterval(STALE_TRANSFORMATION_PROGRESS_TTL),
@@ -147,6 +146,9 @@ export default function (agenda) {
 				filter: blob => {
 					const modificationTime = moment(blob.modificationTime);
 					if (method === 'reQueueBlob') {
+						logger.log('debug', `ReQueuing triggered: ${moment().isAfter(modificationTime.add(ttl))}`);
+						logger.log('debug', moment());
+						logger.log('debug', modificationTime.add(ttl));
 						return moment().isAfter(modificationTime.add(ttl));
 					}
 

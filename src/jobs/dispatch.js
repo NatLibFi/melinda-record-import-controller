@@ -296,14 +296,8 @@ export default function (agenda) {
 		}
 
 		async function processCallback(blobs) {
-			return Promise.all(blobs.map(async ({id, numberOfRecords}) => {
-				try {
-					if (numberOfRecords > 0) {
-						return client.updateState({id, state: BLOB_STATE.TRANSFORMED});
-					}
-				} catch (err) {
-					logError(err);
-				}
+			return Promise.all(blobs.map(async () => {
+				return true;
 			}));
 		}
 	}
