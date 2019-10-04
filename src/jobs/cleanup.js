@@ -79,7 +79,6 @@ export default function (agenda) {
 	}
 
 	async function blobsTransformationQueueCleanup(_, done) {
-		logger.log('debug', 'blobsTransformationQueueCleanup has been added to agenda');
 		return blobsCleanup({
 			method: 'reQueueBlob',
 			ttl: humanInterval(STALE_TRANSFORMATION_PROGRESS_TTL),
@@ -146,9 +145,6 @@ export default function (agenda) {
 				filter: blob => {
 					const modificationTime = moment(blob.modificationTime);
 					if (method === 'reQueueBlob') {
-						logger.log('debug', `ReQueuing triggered: ${moment().isAfter(modificationTime.add(ttl))}`);
-						logger.log('debug', moment());
-						logger.log('debug', modificationTime.add(ttl));
 						return moment().isAfter(modificationTime.add(ttl));
 					}
 
@@ -184,7 +180,6 @@ export default function (agenda) {
 								]
 							}
 						});
-
 						if (containers.length === 0) {
 							logger.log('warn', `Blob ${id} has no transformer alive. Setting state to PENDING_TRANSFORMATION`);
 							await client.updateState({id, state: BLOB_STATE.PENDING_TRANSFORMATION});
