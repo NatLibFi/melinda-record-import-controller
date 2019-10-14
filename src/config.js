@@ -53,7 +53,6 @@ export const BLOBS_METADATA_TTL = readEnvironmentVariable('BLOB_METADATA_TTL');
 export const BLOBS_CONTENT_TTL = readEnvironmentVariable('BLOB_CONTENT_TTL');
 
 export const JOB_FREQ_BLOBS_PENDING = readEnvironmentVariable('JOB_FREQ_BLOBS_PENDING', {defaultValue: '10 seconds'});
-export const JOB_FREQ_BLOBS_TRANSFORMATION_IN_PROGRESS = readEnvironmentVariable('JOB_FREQ_BLOBS_TRANSFORMATION_IN_PROGRESS', {defaultValue: '10 seconds'});
 export const JOB_FREQ_BLOBS_TRANSFORMED = readEnvironmentVariable('JOB_FREQ_BLOBS_TRANSFORMED', {defaultValue: '10 seconds'});
 export const JOB_FREQ_BLOBS_ABORTED = readEnvironmentVariable('JOB_FREQ_BLOBS_ABORTED', {defaultValue: '10 seconds'});
 
@@ -80,7 +79,6 @@ export const PROCESS_START_TIME = moment();
 export const JOB_BLOBS_PENDING = 'BLOBS_PENDING';
 export const JOB_BLOBS_TRANSFORMED = 'BLOBS_TRANSFORMED';
 export const JOB_BLOBS_ABORTED = 'BLOBS_ABORTED';
-export const JOB_BLOBS_TRANSFORMATION_IN_PROGRESS = 'BLOBS_TRANSFORMATION_IN_PROGRESS';
 
 export const JOB_BLOBS_CONTENT_CLEANUP = 'BLOBS_CONTENT_CLEANUP';
 export const JOB_BLOBS_METADATA_CLEANUP = 'BLOBS_METADATA_CLEANUP';
