@@ -35,7 +35,7 @@ import {logError, stopContainers, processBlobs} from './utils';
 import {
 	API_URL, API_USERNAME, API_PASSWORD,
 	CONTAINER_TEMPLATE_TRANSFORMER, CONTAINER_TEMPLATE_IMPORTER,
-	JOB_BLOBS_PENDING, JOB_BLOBS_TRANSFORMED, JOB_BLOBS_ABORTED, JOB_BLOBS_TRANSFORMATION_IN_PROGRESS,
+	JOB_BLOBS_PENDING, JOB_BLOBS_TRANSFORMED, JOB_BLOBS_ABORTED,
 	CONTAINER_CONCURRENCY, IMPORTER_CONCURRENCY, API_CLIENT_USER_AGENT,
 	CONTAINER_NETWORKS, IMPORT_OFFLINE_PERIOD
 } from '../config';
@@ -51,7 +51,6 @@ export default function (agenda) {
 	agenda.define(JOB_BLOBS_PENDING, {concurrency: 1}, blobsPending);
 	agenda.define(JOB_BLOBS_TRANSFORMED, {concurrency: 1}, blobsTransformed);
 	agenda.define(JOB_BLOBS_ABORTED, {concurrency: 1}, blobsAborted);
-	agenda.define(JOB_BLOBS_TRANSFORMATION_IN_PROGRESS, {concurrency: 1}, blobsTransformationInProgress);
 
 	async function blobsPending(_, done) {
 		const docker = new Docker();
