@@ -284,24 +284,6 @@ export default function (agenda) {
 		}
 	}
 
-	async function blobsTransformationInProgress(_, done) {
-		try {
-			await processBlobs({
-				client, processCallback,
-				query: {state: BLOB_STATE.TRANSFORMATION_IN_PROGRESS},
-				messageCallback: count => `${count} blobs have transformation in progress`
-			});
-		} finally {
-			done();
-		}
-
-		async function processCallback(blobs) {
-			return Promise.all(blobs.map(async () => {
-				return true;
-			}));
-		}
-	}
-
 	async function dispatchContainer({docker, type, blob, profile, options, template}) {
 		const manifest = {
 			Image: options.image,
