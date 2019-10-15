@@ -34,7 +34,7 @@
   "dependencies": {
     "@babel/core": "^7.6.2",
     "@natlibfi/melinda-commons": "^7.0.1",
-    "@natlibfi/melinda-record-import-commons": "^6.0.2",
+    "@natlibfi/melinda-record-import-commons": "^7.0.0",
     "agenda": "^2.0.2",
     "amqplib": "^0.5.5",
     "dockerode": "^3.0.1",
