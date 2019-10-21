@@ -62,13 +62,13 @@ export default function (agenda) {
 					const image = docker.getImage(ref);
 					const {RepoDigests} = await image.inspect();
 					if (RepoDigests && RepoDigests.length > 0) {
-						updateImage(ref);
+						await updateImage(ref);
 					}
 				} catch (err) {
 					if (err.statusCode === 404) {
 						if (images404.includes(ref) === false) {
 							logger.log('debug', `Did not found image ${ref} locally, trying to pull it from remote`);
-							updateImage(ref);
+							await updateImage(ref);
 							images404.push(ref);
 						} else {
 							logError(err);
