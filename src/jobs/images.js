@@ -53,14 +53,28 @@ export default function (agenda) {
 
 		try {
 			const refs = await getImageRefs();
+			const images404 = [];
 
 			logger.log('debug', `Checking updates for ${refs.length} images  in the registry`);
 
 			await Promise.all(refs.map(async ref => {
-				const image = docker.getImage(ref);
-				const {RepoDigests} = await image.inspect();
-				if (RepoDigests && RepoDigests.length > 0) {
-					updateImage(ref);
+				try {
+					const image = docker.getImage(ref);
+					const {RepoDigests} = await image.inspect();
+					if (RepoDigests && RepoDigests.length > 0) {
+						updateImage(ref);
+					}
+				} catch (err) {
+					if (err.statusCode === 404) {
+						if (images404.includes(ref) === false) {
+							logger.log('debug', `Did not found image ${ref} locally, trying to pull it from remote`);
+							updateImage(ref);
+							images404.push(ref);
+						} else {
+							logError(err);
+							process.exit(1);
+						}
+					}
 				}
 			}));
 			logger.log('debug', 'Done checking updates for images in the registry');
