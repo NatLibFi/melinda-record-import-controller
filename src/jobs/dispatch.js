@@ -298,6 +298,8 @@ export default function (agenda) {
 
 		const cont = await docker.createContainer(manifest);
 
+		logger.log('debug', `container: ${cont}`);
+
 		await attachToNetworks();
 
 		const info = await cont.start();
