@@ -302,7 +302,7 @@ export default function (agenda) {
 
 		const info = await cont.start();
 
-		logger.log('debug', `Whole info: ${info}`);	
+		logger.log('debug', `Whole info: ${info}`);
 		logger.log('debug', `ID of started ${type} container: ${info.id}`);
 
 		function getEnv(env = {}) {
