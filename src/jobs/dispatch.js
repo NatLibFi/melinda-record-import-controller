@@ -300,14 +300,9 @@ export default function (agenda) {
 
 		await attachToNetworks();
 
-		const info = await cont.start((err, data) => {
-			if (err) {
-				logger.log('debug', `Error while starting ${type} container: ${err}`);
-			}
+		const info = await cont.start();
 
-			logger.log('debug', `Data from start of ${type} container: ${data}`);
-		});
-
+		logger.log('debug', `Whole info: ${info}`);	
 		logger.log('debug', `ID of started ${type} container: ${info.id}`);
 
 		function getEnv(env = {}) {
