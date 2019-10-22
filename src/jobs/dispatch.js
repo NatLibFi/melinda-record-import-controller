@@ -298,14 +298,15 @@ export default function (agenda) {
 
 		const cont = await docker.createContainer(manifest);
 
-		logger.log('debug', 'container:', cont);
-
 		await attachToNetworks();
 
 		const info = await cont.start();
 
-		logger.log('debug', `Whole info: ${info}`);
-		logger.log('debug', `ID of started ${type} container: ${info.id}`);
+		if (info.id === undefined) {
+			logger.log('debug', `Creation of ${type} container has failed`);
+		} else {
+			logger.log('debug', `ID of started ${type} container: ${info.id}`);
+		}
 
 		function getEnv(env = {}) {
 			return Object.keys(env).map(k => `${k}=${env[k]}`);
@@ -326,7 +327,7 @@ export default function (agenda) {
 			return cache[id];
 		}
 
-		cache[id] = await client.getProfile({id}); // eslint-disable-line require-atomic-updates
+		cache[id] = await client.getProfile({id});
 		return cache[id];
 	}
 }
