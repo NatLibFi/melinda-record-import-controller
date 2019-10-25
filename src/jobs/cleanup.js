@@ -37,9 +37,9 @@ import {logError, stopContainers, processBlobs} from './utils';
 import {
 	API_URL, API_USERNAME, API_PASSWORD, API_CLIENT_USER_AGENT, AMQP_URL,
 	JOB_BLOBS_METADATA_CLEANUP, JOB_BLOBS_CONTENT_CLEANUP,
-	JOB_BLOBS_MISSING_RECORDS,
+	JOB_BLOBS_MISSING_RECORDS, JOB_BLOBS_TRANSFORMATION_QUEUE_CLEANUP,
 	JOB_PRUNE_CONTAINERS, JOB_CONTAINERS_HEALTH,
-	BLOBS_METADATA_TTL, BLOBS_CONTENT_TTL
+	BLOBS_METADATA_TTL, BLOBS_CONTENT_TTL, STALE_TRANSFORMATION_PROGRESS_TTL
 } from '../config';
 
 const {createLogger} = Utils;
@@ -56,13 +56,15 @@ export default function (agenda) {
 	agenda.define(JOB_BLOBS_MISSING_RECORDS, {concurrency: 1}, blobsMissingRecords);
 	agenda.define(JOB_PRUNE_CONTAINERS, {concurrency: 1}, pruneContainers);
 	agenda.define(JOB_CONTAINERS_HEALTH, {concurrency: 1}, containersHealth);
+	agenda.define(JOB_BLOBS_TRANSFORMATION_QUEUE_CLEANUP, {concurrency: 1}, blobsTransformationQueueCleanup);
 
 	async function blobsMetadataCleanup(_, done) {
 		return blobsCleanup({
 			method: 'deleteBlob',
 			ttl: humanInterval(BLOBS_METADATA_TTL),
 			doneCallback: done,
-			messageCallback: count => `${count} blobs need to be deleted.`
+			messageCallback: count => `${count} blobs need to be deleted.`,
+			state: [BLOB_STATE.PROCESSED, BLOB_STATE.ABORTED]
 		});
 	}
 
@@ -71,64 +73,19 @@ export default function (agenda) {
 			method: 'deleteBlobContent',
 			ttl: humanInterval(BLOBS_CONTENT_TTL),
 			doneCallback: done,
-			messageCallback: count => `${count} blobs need to have their content deleted.`
+			messageCallback: count => `${count} blobs need to have their content deleted.`,
+			state: [BLOB_STATE.PROCESSED, BLOB_STATE.ABORTED]
 		});
 	}
 
-	async function blobsCleanup({method, ttl, doneCallback, messageCallback}) {
-		let connection;
-		let channel;
-
-		try {
-			connection = await amqplib.connect(AMQP_URL); // eslint-disable-line require-atomic-updates
-			channel = await connection.createChannel();
-
-			await processBlobs({
-				client, processCallback, messageCallback,
-				query: {state: [BLOB_STATE.PROCESSED, BLOB_STATE.ABORTED]},
-				filter: blob => {
-					const modificationTime = moment(blob.modificationTime);
-					return modificationTime.add(ttl).isBefore(moment());
-				}
-			});
-		} finally {
-			if (channel) {
-				await channel.close();
-			}
-
-			if (connection) {
-				await connection.close();
-			}
-
-			doneCallback();
-		}
-
-		async function processCallback(blobs) {
-			return Promise.all(blobs.map(async ({id}) => {
-				try {
-					if (method === 'deleteBlob') {
-						await channel.deleteQueue(id);
-					}
-
-					await client[method]({id});
-				} catch (err) {
-					if (err instanceof ApiError && err.status === HttpStatus.NOT_FOUND) {
-						if (method === 'deleteBlob') {
-							logger.log('debug', `Blob ${id} already removed`);
-						}
-					} else {
-						logError(err);
-					}
-				} finally {
-					await stopContainers({
-						label: [
-							'fi.nationallibrary.melinda.record-import.container-type',
-							`blobId=${id}`
-						]
-					});
-				}
-			}));
-		}
+	async function blobsTransformationQueueCleanup(_, done) {
+		return blobsCleanup({
+			method: 'reQueueBlob',
+			ttl: humanInterval(STALE_TRANSFORMATION_PROGRESS_TTL),
+			doneCallback: done,
+			messageCallback: count => `${count} blobs need to have removed from transformation queue`,
+			state: [BLOB_STATE.TRANSFORMATION_IN_PROGRESS]
+		});
 	}
 
 	async function blobsMissingRecords(_, done) {
@@ -136,8 +93,8 @@ export default function (agenda) {
 		let channel;
 
 		try {
-			connection = await amqplib.connect(AMQP_URL); // eslint-disable-line require-atomic-updates
-			channel = await connection.createChannel(); // eslint-disable-line require-atomic-updates
+			connection = await amqplib.connect(AMQP_URL);
+			channel = await connection.createChannel();
 
 			await processBlobs({
 				client, processCallback,
@@ -171,6 +128,86 @@ export default function (agenda) {
 
 				return processCallback(blobs);
 			}
+		}
+	}
+
+	async function blobsCleanup({method, ttl, doneCallback, messageCallback, state}) {
+		let connection;
+		let channel;
+
+		try {
+			connection = await amqplib.connect(AMQP_URL);
+			channel = await connection.createChannel();
+
+			await processBlobs({
+				client, processCallback, messageCallback,
+				query: {state},
+				filter: blob => {
+					const modificationTime = moment(blob.modificationTime);
+					if (method === 'reQueueBlob') {
+						return moment().isAfter(modificationTime.add(ttl));
+					}
+
+					return modificationTime.add(ttl).isBefore(moment());
+				}
+			});
+		} finally {
+			if (channel) {
+				await channel.close();
+			}
+
+			if (connection) {
+				await connection.close();
+			}
+
+			doneCallback();
+		}
+
+		async function processCallback(blobs) {
+			return Promise.all(blobs.map(async ({id}) => {
+				try {
+					if (method === 'deleteBlob' || method === 'reQueueBlob') {
+						await channel.deleteQueue(id);
+					}
+
+					if (method === 'reQueueBlob') {
+						const docker = new Docker();
+						const containers = await docker.listContainers({
+							filters: {
+								label: [
+									'fi.nationallibrary.melinda.record-import.container-type=transform-task',
+									`blobId=${id}`
+								]
+							}
+						});
+						if (containers.length === 0) {
+							logger.log('warn', `Blob ${id} has no transformer alive. Setting state to PENDING_TRANSFORMATION`);
+							await client.updateState({id, state: BLOB_STATE.PENDING_TRANSFORMATION});
+						}
+
+						return true;
+					}
+
+					await client[method]({id});
+				} catch (err) {
+					if (err instanceof ApiError && err.status === HttpStatus.NOT_FOUND) {
+						if (method === 'deleteBlob') {
+							logger.log('debug', `Blob ${id} already removed`);
+						}
+					} else {
+						logError(err);
+					}
+				} finally {
+					if (method !== 'reQueueBlob') {
+						await stopContainers({
+							label: [
+								'fi.nationallibrary.melinda.record-import.container-type',
+								`blobId=${id}`
+							]
+						});
+					}
+				}
+			}));
 		}
 	}
 

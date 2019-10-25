@@ -35,10 +35,9 @@ import {logError, stopContainers, processBlobs} from './utils';
 import {
 	API_URL, API_USERNAME, API_PASSWORD,
 	CONTAINER_TEMPLATE_TRANSFORMER, CONTAINER_TEMPLATE_IMPORTER,
-	JOB_BLOBS_PENDING, JOB_BLOBS_TRANSFORMED, JOB_BLOBS_ABORTED, JOB_BLOBS_TRANSFORMATION_IN_PROGRESS,
+	JOB_BLOBS_PENDING, JOB_BLOBS_TRANSFORMED, JOB_BLOBS_ABORTED,
 	CONTAINER_CONCURRENCY, IMPORTER_CONCURRENCY, API_CLIENT_USER_AGENT,
-	CONTAINER_NETWORKS, IMPORT_OFFLINE_PERIOD,
-	STALE_TRANSFORMATION_PROGRESS_TTL
+	CONTAINER_NETWORKS, IMPORT_OFFLINE_PERIOD
 } from '../config';
 
 export default function (agenda) {
@@ -52,7 +51,6 @@ export default function (agenda) {
 	agenda.define(JOB_BLOBS_PENDING, {concurrency: 1}, blobsPending);
 	agenda.define(JOB_BLOBS_TRANSFORMED, {concurrency: 1}, blobsTransformed);
 	agenda.define(JOB_BLOBS_ABORTED, {concurrency: 1}, blobsAborted);
-	agenda.define(JOB_BLOBS_TRANSFORMATION_IN_PROGRESS, {concurrency: 1}, blobsTransformationInProgress);
 
 	async function blobsPending(_, done) {
 		const docker = new Docker();
@@ -285,52 +283,6 @@ export default function (agenda) {
 		}
 	}
 
-	async function blobsTransformationInProgress(_, done) {
-		const docker = new Docker();
-
-		try {
-			await processBlobs({
-				client, processCallback,
-				query: {state: BLOB_STATE.TRANSFORMATION_IN_PROGRESS},
-				messageCallback: count => `${count} blobs have transformation in progress`
-			});
-		} finally {
-			done();
-		}
-
-		async function processCallback(blobs) {
-			return Promise.all(blobs.map(async ({id, numberOfRecords, modificationTime}) => {
-				try {
-					if (numberOfRecords > 0) {
-						return client.updateState({id, state: BLOB_STATE.TRANSFORMED});
-					}
-
-					const containers = await docker.listContainers({
-						filters: {
-							label: [
-								'fi.nationallibrary.melinda.record-import.container-type=transform-task',
-								`blobId=${id}`
-							]
-						}
-					});
-
-					// Transformer was apparently terminated abruptly
-					if (containers.length === 0 && isTooOld(modificationTime)) {
-						logger.log('warn', `Blob ${id} has no transformer alive. Setting state to PENDING_TRANSFORMATION`);
-						return client.updateState({id, state: BLOB_STATE.PENDING_TRANSFORMATION});
-					}
-				} catch (err) {
-					logError(err);
-				}
-
-				function isTooOld(modificationTime) {
-					const lastUpdated = moment(modificationTime);
-					return moment().diff(lastUpdated) > STALE_TRANSFORMATION_PROGRESS_TTL;
-				}
-			}));
-		}
-	}
-
 	async function dispatchContainer({docker, type, blob, profile, options, template}) {
 		const manifest = {
 			Image: options.image,
@@ -350,7 +302,11 @@ export default function (agenda) {
 
 		const info = await cont.start();
 
-		logger.log('debug', `ID of started ${type} container: ${info.id}`);
+		if (info.id === undefined) {
+			logger.log('debug', `Creation of ${type} container has failed`);
+		} else {
+			logger.log('debug', `ID of started ${type} container: ${info.id}`);
+		}
 
 		function getEnv(env = {}) {
 			return Object.keys(env).map(k => `${k}=${env[k]}`);
@@ -371,7 +327,7 @@ export default function (agenda) {
 			return cache[id];
 		}
 
-		cache[id] = await client.getProfile({id}); // eslint-disable-line require-atomic-updates
+		cache[id] = await client.getProfile({id});
 		return cache[id];
 	}
 }

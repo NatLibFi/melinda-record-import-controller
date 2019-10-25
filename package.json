@@ -32,25 +32,25 @@
     "watch:dev": "chokidar src -c 'npm run build:transpile && node dist/index.js'"
   },
   "dependencies": {
-    "@babel/core": "^7.4.4",
+    "@babel/core": "^7.6.2",
     "@natlibfi/melinda-commons": "^7.0.1",
-    "@natlibfi/melinda-record-import-commons": "^6.0.0",
+    "@natlibfi/melinda-record-import-commons": "^7.0.1",
     "agenda": "^2.0.2",
     "amqplib": "^0.5.5",
-    "dockerode": "^2.5.8",
+    "dockerode": "2.5.8",
     "http-status": "^1.3.2",
     "human-interval": "^0.1.6",
     "moment": "^2.24.0",
     "mongodb": "^3.2.7"
   },
   "devDependencies": {
-    "@babel/cli": "^7.4.4",
-    "@babel/preset-env": "^7.4.4",
+    "@babel/cli": "^7.6.2",
+    "@babel/preset-env": "^7.6.2",
     "babel-eslint": "^10.0.1",
     "chokidar-cli": "^2.0.0",
-    "cross-env": "^5.1.1",
-    "eslint": "^6.1.0",
-    "eslint-config-xo": ">=0.25.1 <1.0.0",
+    "cross-env": "^6.0.0",
+    "eslint": "^6.4.0",
+    "eslint-config-xo": "^0.27.1",
     "eslint-plugin-import": "^2.14.0",
     "npm-check": "^5.9.0"
   },
