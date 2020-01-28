@@ -54,7 +54,7 @@ async function run() {
 	if (await isSupportedDockerVersion() === false) {
 		Logger.log('error', 'Docker API version is not supported');
 		process.exit(1);
-	}	
+	}
 
 	Mongo.on('error', err => {
 		Logger.log('error', 'Error stack' in err ? err.stack : err);
@@ -138,7 +138,7 @@ async function run() {
 	async function isSupportedDockerVersion() {
 		const docker = new Docker();
 		const {ApiVersion} = await docker.version();
-		
+
 		return ApiVersion === DOCKER_API_VERSION;
 	}
 }

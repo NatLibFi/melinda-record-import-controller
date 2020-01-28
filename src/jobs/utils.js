@@ -35,14 +35,14 @@ const {createLogger} = Utils;
 export async function stopContainers(filters) {
 	const logger = createLogger();
 	const docker = new Docker();
-	const containersInfo = await docker.listContainers(filters);
+	const containersInfo = await docker.listContainers({filters});
 
 	if (containersInfo.length > 0) {
 		await Promise.all(containersInfo.map(async info => {
 			try {
-				const cont = await docker.getContainer(info.id);
+				const cont = await docker.getContainer(info.Id);
 
-				if (info.running) {
+				if (info.state === 'running') {
 					logger.log('debug', 'Stopping container');
 					await cont.stop();
 				}
