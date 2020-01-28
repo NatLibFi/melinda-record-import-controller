@@ -32,7 +32,7 @@ import Docker from 'dockerode';
 import Agenda from 'agenda';
 import {createDispatchJob, createCleanupJob, createImagesJob} from './jobs';
 import {
-	MONGO_URI, TZ, DOCKER_API_VERSION,
+	MONGO_URI, TZ, SUPPORTED_DOCKER_API_VERSIONS,
 	JOB_BLOBS_PENDING, JOB_BLOBS_TRANSFORMED, JOB_BLOBS_ABORTED,
 	JOB_BLOBS_METADATA_CLEANUP, JOB_BLOBS_CONTENT_CLEANUP, JOB_BLOBS_MISSING_RECORDS,
 	JOB_CONTAINERS_HEALTH, JOB_PRUNE_CONTAINERS, JOB_UPDATE_IMAGES,
@@ -139,6 +139,6 @@ async function run() {
 		const docker = new Docker();
 		const {ApiVersion} = await docker.version();
 
-		return ApiVersion === DOCKER_API_VERSION;
+		return SUPPORTED_DOCKER_API_VERSIONS.includes(ApiVersion);
 	}
 }
