@@ -68,27 +68,38 @@ export default function (agenda) {
 		async function processCallback(blobs) {
 			const profileCache = {};
 
-			return Promise.all(blobs.map(async ({id, profile: profileId}) => {
-				try {
-					const {transformation: transformationOptions} = await getProfile(profileId, profileCache);
+			return dispatch(blobs);
 
-					if (await canDispatch()) {
-						await dispatchContainer({
-							docker,
-							type: 'transformation',
-							blob: id,
-							profile: profileId,
-							options: transformationOptions,
-							template: CONTAINER_TEMPLATE_TRANSFORMER
-						});
+			async function dispatch(blobs) {
+				const blob = blobs[0];
 
-						await client.updateState({id, state: BLOB_STATE.TRANSFORMATION_IN_PROGRESS});
-						logger.log('info', `Transformation started for ${id} `);
-					} else {
+				if (blob) {
+					const {id, profile: profileId} = blob;
+
+					try {
+						const {transformation: transformationOptions} = await getProfile(profileId, profileCache);
+
+						if (await canDispatch()) {
+							await dispatchContainer({
+								docker,
+								type: 'transformation',
+								blob: id,
+								profile: profileId,
+								options: transformationOptions,
+								template: CONTAINER_TEMPLATE_TRANSFORMER
+							});
+
+							await client.updateState({id, state: BLOB_STATE.TRANSFORMATION_IN_PROGRESS});
+							logger.log('info', `Transformation started for ${id} `);
+
+							return dispatch(blobs.slice(1));
+						}
+
 						logger.log('warn', `Could not dispatch transformer for blob ${id} because total number of containers is exhausted`);
+						return dispatch(blobs.slice(1));
+					} catch (err) {
+						logError(err);
 					}
-				} catch (err) {
-					logError(err);
 				}
 
 				async function canDispatch() {
@@ -100,7 +111,7 @@ export default function (agenda) {
 
 					return runningContainers.length < CONTAINER_CONCURRENCY;
 				}
-			}));
+			}
 		}
 	}
 
