@@ -42,7 +42,7 @@ export async function stopContainers(filters) {
 			try {
 				const cont = await docker.getContainer(info.Id);
 
-				if (info.state === 'running') {
+				if (info.State === 'running') {
 					logger.log('debug', 'Stopping container');
 					await cont.stop();
 				}
