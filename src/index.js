@@ -28,11 +28,11 @@
 
 import {Utils} from '@natlibfi/melinda-commons';
 import {MongoClient, MongoError} from 'mongodb';
-// Import {MongoClient} from 'mongodb';
+import Docker from 'dockerode';
 import Agenda from 'agenda';
 import {createDispatchJob, createCleanupJob, createImagesJob} from './jobs';
 import {
-	MONGO_URI, TZ,
+	MONGO_URI, TZ, SUPPORTED_DOCKER_API_VERSIONS,
 	JOB_BLOBS_PENDING, JOB_BLOBS_TRANSFORMED, JOB_BLOBS_ABORTED,
 	JOB_BLOBS_METADATA_CLEANUP, JOB_BLOBS_CONTENT_CLEANUP, JOB_BLOBS_MISSING_RECORDS,
 	JOB_CONTAINERS_HEALTH, JOB_PRUNE_CONTAINERS, JOB_UPDATE_IMAGES,
@@ -50,6 +50,11 @@ run();
 async function run() {
 	const Logger = createLogger();
 	const Mongo = await MongoClient.connect(MONGO_URI, {useNewUrlParser: true});
+
+	if (await isSupportedDockerVersion() === false) {
+		Logger.log('error', 'Docker API version is not supported');
+		process.exit(1);
+	}
 
 	Mongo.on('error', err => {
 		Logger.log('error', 'Error stack' in err ? err.stack : err);
@@ -128,5 +133,12 @@ async function run() {
 	async function handleExit(arg) {
 		await Mongo.close();
 		handleInterrupt(arg);
+	}
+
+	async function isSupportedDockerVersion() {
+		const docker = new Docker();
+		const {ApiVersion} = await docker.version();
+
+		return SUPPORTED_DOCKER_API_VERSIONS.includes(ApiVersion);
 	}
 }

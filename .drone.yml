@@ -9,7 +9,7 @@ steps:
   commands:
   - chmod -R o+w /drone/src
 - name: test
-  image: node:8
+  image: node:12
   user: node  
   commands:
   - npm install
@@ -23,6 +23,3 @@ steps:
       from_secret: docker_username
     password:
       from_secret: docker_password
-  when:
-    branch: [master, test]
-event: [push, tag]

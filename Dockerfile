@@ -1,4 +1,4 @@
-FROM node:8-alpine
+FROM node:12-alpine
 ENTRYPOINT ["/entrypoint.sh"]
 CMD ["/usr/local/bin/node", "index.js"]
 WORKDIR /home/node
