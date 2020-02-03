@@ -36,8 +36,9 @@ import {
 	API_URL, API_USERNAME, API_PASSWORD,
 	CONTAINER_TEMPLATE_TRANSFORMER, CONTAINER_TEMPLATE_IMPORTER,
 	JOB_BLOBS_PENDING, JOB_BLOBS_TRANSFORMED, JOB_BLOBS_ABORTED,
-	CONTAINER_CONCURRENCY, IMPORTER_CONCURRENCY, API_CLIENT_USER_AGENT,
-	CONTAINER_NETWORKS, IMPORT_OFFLINE_PERIOD
+	CONTAINER_CONCURRENCY, IMPORTER_CONCURRENCY, TRANSFORMER_CONCURRENCY,
+	IMPORTER_CONCURRENCY_BLOB,
+	API_CLIENT_USER_AGENT, CONTAINER_NETWORKS, IMPORT_OFFLINE_PERIOD
 } from '../config';
 
 export default function (agenda) {
@@ -103,13 +104,19 @@ export default function (agenda) {
 				}
 
 				async function canDispatch() {
-					const runningContainers = await docker.listContainers({
+					const totalCount = await docker.listContainers({
 						filters: {
 							label: ['fi.nationallibrary.melinda.record-import.container-type']
 						}
-					});
+					}).length;
 
-					return runningContainers.length < CONTAINER_CONCURRENCY;
+					const transformCount = await docker.listContainers({
+						filters: {
+							label: ['fi.nationallibrary.melinda.record-import.container-type=transform-task']
+						}
+					}).length;
+
+					return transformCount < TRANSFORMER_CONCURRENCY && totalCount < CONTAINER_CONCURRENCY;
 				}
 			}
 		}
@@ -159,7 +166,9 @@ export default function (agenda) {
 					}
 
 					const profile = await getProfile(profileId, profileCache);
-					const {dispatchCount, totalLimitAfterDispatch} = await getDispatchCount(profile);
+					const {dispatchCount, totalLimitAfterDispatch} = await getDispatchCount(profile.id);
+
+					logger.log('debug', `Importer container status for profile ${id}: Available ${dispatchCount + totalLimitAfterDispatch}`);
 
 					if (dispatchCount > 0) {
 						if (isOfflinePeriod()) {
@@ -205,15 +214,20 @@ export default function (agenda) {
 					}
 				}
 
-				async function getDispatchCount({id, import: {concurrency: importerConcurrencyOpt}}) {
-					const importerConcurrency = typeof importerConcurrencyOpt === 'number' ? importerConcurrencyOpt : IMPORTER_CONCURRENCY;
-					const total = (await docker.listContainers({
+				async function getDispatchCount(id) {
+					const totalCount = (await docker.listContainers({
 						filters: {
 							label: ['fi.nationallibrary.melinda.record-import.container-type']
 						}
 					})).length;
 
-					const importers = (await docker.listContainers({
+					const importerCount = (await docker.listContainers({
+						filters: {
+							label: ['fi.nationallibrary.melinda.record-import.container-type=import-task']
+						}
+					})).length;
+
+					const blobImporterCount = (await docker.listContainers({
 						filters: {
 							label: [
 								'fi.nationallibrary.melinda.record-import.container-type=import-task',
@@ -222,26 +236,39 @@ export default function (agenda) {
 						}
 					})).length;
 
-					logger.log('debug', `Running import containers for profile ${id}: ${importers}/${importerConcurrency}. Running containers total: ${total}/${CONTAINER_CONCURRENCY}`);
+					if (blobImporterCount < IMPORTER_CONCURRENCY_BLOB && importerCount < IMPORTER_CONCURRENCY && totalCount && CONTAINER_CONCURRENCY) {
+						const dispatchCount = calculateCount(totalCount, importerCount, blobImporterCount);
+						const canDispatchMore = dispatchCount < IMPORTER_CONCURRENCY_BLOB && dispatchCount < IMPORTER_CONCURRENCY && dispatchCount < CONTAINER_CONCURRENCY;
 
-					const availImporters = importerConcurrency - importers;
-					const availTotal = CONTAINER_CONCURRENCY - total;
-
-					if (availImporters > 0 && availTotal > 0) {
-						if (availTotal >= availImporters) {
-							return {
-								dispatchCount: availImporters,
-								totalLimitAfterDispatch: availTotal - availImporters
-							};
-						}
-
-						return {
-							dispatchCount: availImporters - availTotal,
-							totalLimitAfterDispatch: availTotal - availImporters
-						};
+						return {dispatchCount, canDispatchMore};
 					}
 
-					return {dispatchCount: 0};
+					return {dispatchCount: 0, canDispatchMore: false};
+
+					function calculateCount() {
+						const leftTotal = CONTAINER_CONCURRENCY - totalCount;
+						const leftImporters = IMPORTER_CONCURRENCY - importerCount;
+						const leftBlobImporters = IMPORTER_CONCURRENCY_BLOB - blobImporterCount;
+
+						const importerLimit = getImporterLimit();
+						const totalResult = importerLimit - leftTotal;
+
+						if (totalResult <= 0) {
+							return importerLimit;
+						}
+
+						return 1;
+
+						function getImporterLimit() {
+							const limit = leftBlobImporters - leftImporters;
+
+							if (limit <= 0) {
+								return leftBlobImporters;
+							}
+
+							return 1;
+						}
+					}
 				}
 
 				async function dispatchImporters({id, docker, dispatchCount, profile}) {

@@ -45,7 +45,9 @@ export const MONGO_URI = readEnvironmentVariable('MONGO_URI', {defaultValue: 'mo
 export const AMQP_URL = readEnvironmentVariable('AMQP_URL', {defaultValue: 'amqp://127.0.0.1:5672'});
 
 export const IMPORTER_CONCURRENCY = readEnvironmentVariable('IMPORTER_CONCURRENCY', {defaultValue: 1, format: v => Number(v)});
+export const TRANSFORMER_CONCURRENCY = readEnvironmentVariable('IMPORTER_CONCURRENCY', {defaultValue: 1, format: v => Number(v)});
 export const CONTAINER_CONCURRENCY = readEnvironmentVariable('CONTAINER_CONCURRENCY', {defaultValue: 5, format: v => Number(v)});
+export const IMPORTER_CONCURRENCY_BLOB = readEnvironmentVariable('CONTAINER_CONCURRENCY', {defaultValue: 1, format: v => Number(v)});
 
 export const CONTAINER_NETWORKS = readEnvironmentVariable('CONTAINER_NETWORKS', {defaultValue: [], format: v => JSON.parse(v)});
 
