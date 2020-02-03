@@ -123,7 +123,7 @@ export default function (agenda) {
 				const {messageCount} = await channel.assertQueue(id);
 
 				if (processedCount < numberOfRecords && messageCount === 0) {
-					logger.log('warn', `Blob ${id} is missing records from the queue`);
+					logger.log('warn', `Blob ${id} is missing records from the queue (processedCount: ${processedCount}, numberOfRecords: ${numberOfRecords}, messageCount: ${messageCount})`);
 				}
 
 				return processCallback(blobs);
