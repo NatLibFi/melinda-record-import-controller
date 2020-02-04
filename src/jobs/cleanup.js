@@ -34,7 +34,7 @@ import {Utils} from '@natlibfi/melinda-commons';
 import {BLOB_STATE, createApiClient, ApiError} from '@natlibfi/melinda-record-import-commons';
 import {logError, processBlobs} from '../utils';
 import {
-	
+
 } from '../config';
 
 const {createLogger} = Utils;
@@ -52,14 +52,14 @@ export default function (agenda, {
 		url: API_URL, username: API_USERNAME, password: API_PASSWORD,
 		userAgent: API_CLIENT_USER_AGENT
 	});
-	
+
 	agenda.define(JOB_BLOBS_METADATA_CLEANUP, {}, blobsMetadataCleanup);
 	agenda.define(JOB_BLOBS_CONTENT_CLEANUP, {}, blobsContentCleanup);
 	agenda.define(JOB_BLOBS_MISSING_RECORDS, {}, blobsMissingRecords);
 	agenda.define(JOB_PRUNE_TASKS, {}, pruneTasksJob);
 	agenda.define(JOB_TASKS_HEALTH, {}, tasksHealth);
 	agenda.define(JOB_BLOBS_TRANSFORMATION_QUEUE_CLEANUP, {}, blobsTransformationQueueCleanup);
-	
+
 	async function blobsMetadataCleanup(_, done) {
 		return blobsCleanup({
 			method: 'deleteBlob',
@@ -69,7 +69,7 @@ export default function (agenda, {
 			state: [BLOB_STATE.PROCESSED, BLOB_STATE.ABORTED]
 		});
 	}
-	
+
 	async function blobsContentCleanup(_, done) {
 		return blobsCleanup({
 			method: 'deleteBlobContent',
@@ -79,7 +79,7 @@ export default function (agenda, {
 			state: [BLOB_STATE.PROCESSED, BLOB_STATE.ABORTED]
 		});
 	}
-	
+
 	async function blobsTransformationQueueCleanup(_, done) {
 		return blobsCleanup({
 			method: 'requeueBlob',
@@ -89,15 +89,15 @@ export default function (agenda, {
 			state: [BLOB_STATE.TRANSFORMATION_IN_PROGRESS]
 		});
 	}
-	
+
 	async function blobsMissingRecords(_, done) {
 		let connection;
 		let channel;
-		
+
 		try {
 			connection = await amqplib.connect(AMQP_URL);
 			channel = await connection.createChannel();
-			
+
 			await processBlobs({
 				client, processCallback,
 				query: {state: BLOB_STATE.TRANSFORMED}
@@ -108,39 +108,39 @@ export default function (agenda, {
 			if (channel) {
 				await channel.close();
 			}
-			
+
 			if (connection) {
 				await connection.close();
 			}
-			
+
 			done();
 		}
-		
+
 		async function processCallback(blobs) {
 			const blob = blobs.shift();
-			
+
 			if (blob) {
 				const {id, processedRecords, failedRecords, numberOfRecords} = blob;
 				const processedCount = processedRecords + failedRecords;
 				const {messageCount} = await channel.assertQueue(id);
-				
+
 				if (processedCount < numberOfRecords && messageCount === 0) {
 					logger.log('warn', `Blob ${id} is missing records from the queue (processedCount: ${processedCount}, numberOfRecords: ${numberOfRecords}, messageCount: ${messageCount})`);
 				}
-				
+
 				return processCallback(blobs);
 			}
 		}
 	}
-	
+
 	async function blobsCleanup({method, ttl, doneCallback, messageCallback, state}) {
 		let connection;
 		let channel;
-		
+
 		try {
 			connection = await amqplib.connect(AMQP_URL);
 			channel = await connection.createChannel();
-			
+
 			await processBlobs({
 				client, processCallback, messageCallback,
 				query: {state},
@@ -149,7 +149,7 @@ export default function (agenda, {
 					if (method === 'requeueBlob') {
 						return moment().isAfter(modificationTime.add(ttl));
 					}
-					
+
 					return modificationTime.add(ttl).isBefore(moment());
 				}
 			});
@@ -157,47 +157,47 @@ export default function (agenda, {
 			if (channel) {
 				await channel.close();
 			}
-			
+
 			if (connection) {
 				await connection.close();
 			}
-			
+
 			doneCallback();
 		}
-		
+
 		async function processCallback(blobs) {
 			return Promise.all(blobs.map(async ({id}) => {
 				try {
 					if (method === 'deleteBlob' || method === 'reQueueBlob') {
 						await channel.deleteQueue(id);
 					}
-					
+
 					if (method === 'requeueBlob') {
 						const tasks = await listTasks({blob: id, type: 'transform'});
-						
+
 						if (tasks.length === 0) {
 							logger.log('warn', `Blob ${id} has no transformer alive. Setting state to PENDING_TRANSFORMATION`);
 							await client.updateState({id, state: BLOB_STATE.PENDING_TRANSFORMATION});
 						}
-						
+
 						return true;
 					}
-					
+
 					return client[method]({id});
 				} catch (err) {
 					if (err instanceof ApiError && err.status === HttpStatus.BAD_REQUEST && method === 'deleteBlob') {
 						logger.log('warn', `Couldn't delete blob ${id} because content hasn't yet been deleted`);
 						return;
 					}
-					
+
 					if (err instanceof ApiError && err.status === HttpStatus.NOT_FOUND) {
 						if (method === 'deleteBlob') {
 							logger.log('debug', `Blob ${id} already removed`);
 						}
-						
+
 						return;
 					}
-					
+
 					logError(err);
 				} finally {
 					if (method !== 'requeueBlob') {
@@ -207,7 +207,7 @@ export default function (agenda, {
 			}));
 		}
 	}
-	
+
 	async function pruneTasksJob(_, done) {
 		try {
 			await pruneTasks();
@@ -215,7 +215,7 @@ export default function (agenda, {
 			done();
 		}
 	}
-	
+
 	async function tasksHealth(_, done) {
 		try {
 			await terminateTasks({unhealthy: true});

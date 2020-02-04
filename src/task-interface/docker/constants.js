@@ -30,14 +30,14 @@ export const LABEL_TASK = 'fi.nationallibrary.melinda.record-import.task=true';
 export const LABEL_TRANSFORM_TASK = 'fi.nationallibrary.melinda.record-import.container-type=transform-task';
 export const LABEL_IMPORT_TASK = 'fi.nationallibrary.melinda.record-import.container-type=import-task';
 
-export const TRANSFORMER_TEMPLATE = {	
+export const TRANSFORMER_TEMPLATE = {
 	Binds: ['/etc/localtime:/etc/localtime:ro'],
 	Labels: {
 		'fi.nationallibrary.melinda.record-import.task': 'true',
 		'fi.nationallibrary.melinda.record-import.container-type': 'transform-task'
 	},
 	Env: [
-		'ABORT_ON_INVALID_RECORDS=false',
+		'ABORT_ON_INVALID_RECORDS=false'
 	],
 	Healthcheck: {
 		Test: ['CMD-SHELL', 'node node_modules/@natlibfi/melinda-record-import-commons/dist/health-check.js'],
@@ -47,7 +47,7 @@ export const TRANSFORMER_TEMPLATE = {
 	}
 };
 
-export const IMPORTER_TEMPLATE = {	
+export const IMPORTER_TEMPLATE = {
 	Binds: ['/etc/localtime:/etc/localtime:ro'],
 	Labels: {
 		'fi.nationallibrary.melinda.record-import.task': 'true',
