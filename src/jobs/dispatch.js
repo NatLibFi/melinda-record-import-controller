@@ -28,34 +28,30 @@
 */
 
 import moment from 'moment';
-import Docker from 'dockerode';
 import {Utils} from '@natlibfi/melinda-commons';
 import {BLOB_STATE, createApiClient} from '@natlibfi/melinda-record-import-commons';
-import {logError, stopContainers, processBlobs} from './utils';
-import {
-	API_URL, API_USERNAME, API_PASSWORD,
-	CONTAINER_TEMPLATE_TRANSFORMER, CONTAINER_TEMPLATE_IMPORTER,
-	JOB_BLOBS_PENDING, JOB_BLOBS_TRANSFORMED, JOB_BLOBS_ABORTED,
-	CONTAINER_CONCURRENCY, IMPORTER_CONCURRENCY, TRANSFORMER_CONCURRENCY,
-	IMPORTER_CONCURRENCY_BLOB,
-	API_CLIENT_USER_AGENT, CONTAINER_NETWORKS, IMPORT_OFFLINE_PERIOD
-} from '../config';
+import {logError, processBlobs} from '../utils';
 
-export default function (agenda) {
-	const {createLogger, clone} = Utils;
+export default function (agenda, {
+	listTasks, dispatchTask, terminateTasks,
+	API_URL, API_USERNAME, API_PASSWORD,
+	JOB_BLOBS_PENDING, JOB_BLOBS_TRANSFORMED, JOB_BLOBS_ABORTED,
+	TASK_CONCURRENCY, IMPORTER_CONCURRENCY, TRANSFORMER_CONCURRENCY,
+	IMPORTER_CONCURRENCY_BLOB,
+	API_CLIENT_USER_AGENT, IMPORT_OFFLINE_PERIOD
+}) {
+	const {createLogger} = Utils;
 	const logger = createLogger();
 	const client = createApiClient({
 		url: API_URL, username: API_USERNAME, password: API_PASSWORD,
 		userAgent: API_CLIENT_USER_AGENT
 	});
 
-	agenda.define(JOB_BLOBS_PENDING, {concurrency: 1}, blobsPending);
-	agenda.define(JOB_BLOBS_TRANSFORMED, {concurrency: 1}, blobsTransformed);
-	agenda.define(JOB_BLOBS_ABORTED, {concurrency: 1}, blobsAborted);
+	agenda.define(JOB_BLOBS_PENDING, {}, blobsPending);
+	agenda.define(JOB_BLOBS_TRANSFORMED, {}, blobsTransformed);
+	agenda.define(JOB_BLOBS_ABORTED, {}, blobsAborted);
 
 	async function blobsPending(_, done) {
-		const docker = new Docker();
-
 		try {
 			await processBlobs({
 				client, processCallback,
@@ -81,13 +77,11 @@ export default function (agenda) {
 						const {transformation: transformationOptions} = await getProfile(profileId, profileCache);
 
 						if (await canDispatch()) {
-							await dispatchContainer({
-								docker,
-								type: 'transformation',
+							await dispatchTask({
+								type: 'transform',
 								blob: id,
 								profile: profileId,
-								options: transformationOptions,
-								template: CONTAINER_TEMPLATE_TRANSFORMER
+								options: transformationOptions
 							});
 
 							await client.updateState({id, state: BLOB_STATE.TRANSFORMATION_IN_PROGRESS});
@@ -96,7 +90,7 @@ export default function (agenda) {
 							return dispatch(blobs.slice(1));
 						}
 
-						logger.log('warn', `Could not dispatch transformer for blob ${id} because total number of containers is exhausted`);
+						logger.log('warn', `Could not dispatch transformer for blob ${id} because total number of tasks is exhausted`);
 						return dispatch(blobs.slice(1));
 					} catch (err) {
 						logError(err);
@@ -104,19 +98,10 @@ export default function (agenda) {
 				}
 
 				async function canDispatch() {
-					const totalCount = await docker.listContainers({
-						filters: {
-							label: ['fi.nationallibrary.melinda.record-import.container-type']
-						}
-					}).length;
+					const totalCount = (await listTasks()).length;
+					const transformCount = (await listTasks({type: 'transform'})).length;
 
-					const transformCount = await docker.listContainers({
-						filters: {
-							label: ['fi.nationallibrary.melinda.record-import.container-type=transform-task']
-						}
-					}).length;
-
-					return transformCount < TRANSFORMER_CONCURRENCY && totalCount < CONTAINER_CONCURRENCY;
+					return transformCount < TRANSFORMER_CONCURRENCY && totalCount < TASK_CONCURRENCY;
 				}
 			}
 		}
@@ -124,7 +109,6 @@ export default function (agenda) {
 
 	async function blobsTransformed({attrs: {data: blobsTryCount}}, done) {
 		const profileCache = {};
-		const docker = new Docker();
 
 		try {
 			await processBlobs({
@@ -166,28 +150,31 @@ export default function (agenda) {
 					}
 
 					const profile = await getProfile(profileId, profileCache);
-					const {dispatchCount, totalLimitAfterDispatch} = await getDispatchCount(profile.id);
+					const {dispatchCount, canDispatchMore} = await getDispatchCount(profile.id);
 
-					logger.log('debug', `Importer container status for profile ${id}: Available ${dispatchCount + totalLimitAfterDispatch}`);
+					logger.log('debug', `Importer task status for profile ${id}: Can dispatch ${dispatchCount}. Can dispatch more: ${canDispatchMore}`);
 
 					if (dispatchCount > 0) {
 						if (isOfflinePeriod()) {
 							logger.log('debug', 'Not dispatching importers during offline period');
-						} else {
-							logger.log('debug', `Dispatching ${dispatchCount} import containers for blob ${id}`);
-							await dispatchImporters({id, docker, dispatchCount, profile});
-
-							blobsTryCount[id] = blobsTryCount[id] ? blobsTryCount[id] + 1 : 1;
-
-							if (totalLimitAfterDispatch <= 0) {
-								logger.log('debug', 'Not processing further blobs because total container limit is exhausted');
-								return;
-							}
+							return;
 						}
-					} else {
-						logger.log('debug', `Cannot dispatch importer containers for blob ${id}. Maximum number of containers exhausted.`);
-						profilesExhausted.push(profileId);
+
+						logger.log('debug', `Dispatching ${dispatchCount} import tasks for blob ${id}`);
+						await dispatchImporters({id, dispatchCount, profile});
+
+						blobsTryCount[id] = blobsTryCount[id] ? blobsTryCount[id] + 1 : 1;
+
+						if (canDispatchMore === false) {
+							logger.log('debug', 'Not processing further blobs because total task limit is exhausted');
+							return;
+						}
+
+						return doProcessing({blobs, profilesExhausted});
 					}
+
+					logger.log('debug', `Cannot dispatch importer tasks for blob ${id}. Maximum number of tasks exhausted.`);
+					profilesExhausted.push(profileId);
 
 					return doProcessing({blobs, profilesExhausted});
 				}
@@ -215,30 +202,13 @@ export default function (agenda) {
 				}
 
 				async function getDispatchCount(id) {
-					const totalCount = (await docker.listContainers({
-						filters: {
-							label: ['fi.nationallibrary.melinda.record-import.container-type']
-						}
-					})).length;
+					const totalCount = (await listTasks()).length;
+					const importerCount = (await listTasks({type: 'import'})).length;
+					const blobImporterCount = (await listTasks({type: 'import', profile: id})).length;
 
-					const importerCount = (await docker.listContainers({
-						filters: {
-							label: ['fi.nationallibrary.melinda.record-import.container-type=import-task']
-						}
-					})).length;
-
-					const blobImporterCount = (await docker.listContainers({
-						filters: {
-							label: [
-								'fi.nationallibrary.melinda.record-import.container-type=import-task',
-								`profile=${id}`
-							]
-						}
-					})).length;
-
-					if (blobImporterCount < IMPORTER_CONCURRENCY_BLOB && importerCount < IMPORTER_CONCURRENCY && totalCount && CONTAINER_CONCURRENCY) {
+					if (blobImporterCount < IMPORTER_CONCURRENCY_BLOB && importerCount < IMPORTER_CONCURRENCY && totalCount < TASK_CONCURRENCY) {
 						const dispatchCount = calculateCount(totalCount, importerCount, blobImporterCount);
-						const canDispatchMore = dispatchCount < IMPORTER_CONCURRENCY_BLOB && dispatchCount < IMPORTER_CONCURRENCY && dispatchCount < CONTAINER_CONCURRENCY;
+						const canDispatchMore = dispatchCount < IMPORTER_CONCURRENCY_BLOB && dispatchCount < IMPORTER_CONCURRENCY && dispatchCount < TASK_CONCURRENCY;
 
 						return {dispatchCount, canDispatchMore};
 					}
@@ -246,7 +216,7 @@ export default function (agenda) {
 					return {dispatchCount: 0, canDispatchMore: false};
 
 					function calculateCount() {
-						const leftTotal = CONTAINER_CONCURRENCY - totalCount;
+						const leftTotal = TASK_CONCURRENCY - totalCount;
 						const leftImporters = IMPORTER_CONCURRENCY - importerCount;
 						const leftBlobImporters = IMPORTER_CONCURRENCY_BLOB - blobImporterCount;
 
@@ -271,16 +241,14 @@ export default function (agenda) {
 					}
 				}
 
-				async function dispatchImporters({id, docker, dispatchCount, profile}) {
+				async function dispatchImporters({id, dispatchCount, profile}) {
 					return Promise.all(map(async () => {
 						try {
-							await dispatchContainer({
-								docker,
+							await dispatchTask({
 								type: 'import',
 								blob: id,
 								profile: profile.id,
-								options: profile.import,
-								template: CONTAINER_TEMPLATE_IMPORTER
+								options: profile.import
 							});
 						} catch (err) {
 							logError(err);
@@ -308,54 +276,10 @@ export default function (agenda) {
 		async function processCallback(blobs) {
 			return Promise.all(blobs.map(async ({id}) => {
 				try {
-					await stopContainers({
-						label: [
-							'fi.nationallibrary.melinda.record-import.container-type',
-							`blobId=${id}`
-						]
-					});
+					await terminateTasks({blob: id});
 				} catch (err) {
 					logError(err);
 				}
-			}));
-		}
-	}
-
-	async function dispatchContainer({docker, type, blob, profile, options, template}) {
-		const manifest = {
-			Image: options.image,
-			...clone(template)
-		};
-
-		manifest.Labels.blobId = blob;
-		manifest.Labels.profile = profile;
-		manifest.Env.push(`PROFILE_ID=${profile}`);
-		manifest.Env.push(`BLOB_ID=${blob}`);
-
-		getEnv(options.env).forEach(v => manifest.Env.push(v));
-
-		const cont = await docker.createContainer(manifest);
-
-		await attachToNetworks();
-
-		const info = await cont.start();
-
-		if (info.id === undefined) {
-			logger.log('debug', `Creation of ${type} container has failed`);
-		} else {
-			logger.log('debug', `ID of started ${type} container: ${info.id}`);
-		}
-
-		function getEnv(env = {}) {
-			return Object.keys(env).map(k => `${k}=${env[k]}`);
-		}
-
-		async function attachToNetworks() {
-			return Promise.all(CONTAINER_NETWORKS.map(async networkName => {
-				const network = await docker.getNetwork(networkName);
-				await network.connect({
-					Container: cont.id
-				});
 			}));
 		}
 	}

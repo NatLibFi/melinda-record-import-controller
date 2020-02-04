@@ -27,56 +27,24 @@
 *
 */
 
-import Docker from 'dockerode';
-import {Utils} from '@natlibfi/melinda-commons';
 import {createApiClient} from '@natlibfi/melinda-record-import-commons';
-import {logError} from './utils';
-import {
-	API_URL, API_USERNAME, API_PASSWORD,
-	API_CLIENT_USER_AGENT, JOB_UPDATE_IMAGES
-} from '../config';
+import {logError} from '../utils';
 
-const {createLogger} = Utils;
-
-export default function (agenda) {
-	const logger = createLogger();
+export default function (agenda, {
+	updateImages,
+	API_URL, API_USERNAME, API_PASSWORD, API_CLIENT_USER_AGENT, JOB_UPDATE_IMAGES
+}) {
 	const client = createApiClient({
 		url: API_URL, username: API_USERNAME, password: API_PASSWORD,
 		userAgent: API_CLIENT_USER_AGENT
 	});
 
-	agenda.define(JOB_UPDATE_IMAGES, {concurrency: 1}, updateImages);
+	agenda.define(JOB_UPDATE_IMAGES, {}, updateImagesJob);
 
-	async function updateImages(_, done) {
-		const docker = new Docker();
-
+	async function updateImagesJob(_, done) {
 		try {
 			const refs = await getImageRefs();
-			const images404 = [];
-
-			logger.log('debug', `Checking updates for ${refs.length} images  in the registry`);
-
-			await Promise.all(refs.map(async ref => {
-				try {
-					const image = docker.getImage(ref);
-					const {RepoDigests} = await image.inspect();
-					if (RepoDigests && RepoDigests.length > 0) {
-						await updateImage(ref);
-					}
-				} catch (err) {
-					if (err.statusCode === 404) {
-						if (images404.includes(ref) === false) {
-							logger.log('debug', `Did not found image ${ref} locally, trying to pull it from remote`);
-							await updateImage(ref);
-							images404.push(ref);
-						} else {
-							logError(err);
-							process.exit(1);
-						}
-					}
-				}
-			}));
-			logger.log('debug', 'Done checking updates for images in the registry');
+			await updateImages(refs);
 		} catch (err) {
 			logError(err);
 		} finally {
@@ -98,32 +66,6 @@ export default function (agenda) {
 
 				return acc;
 			}, []);
-		}
-
-		async function updateImage(image) {
-			const stream = await docker.pull(image);
-
-			return new Promise((resolve, reject) => {
-				let pullingImage;
-				docker.modem.followProgress(stream, finishCallback, progressCallback);
-
-				function finishCallback(err) {
-					if (err) {
-						reject(err);
-					} else {
-						resolve();
-					}
-				}
-
-				function progressCallback(event) {
-					if (/^Status: Downloaded newer image/.test(event.status)) {
-						logger.log('info', `Completed dowloading new version of ${image}`);
-					} else if (/^Pulling fs layer/.test(event.status) && !pullingImage) {
-						logger.log('info', `Image ${image} has been updated in the registry. Pulling new version`);
-						pullingImage = true;
-					}
-				}
-			});
 		}
 	}
 }

@@ -26,37 +26,39 @@
 *
 */
 
-import Docker from 'dockerode';
 import moment from 'moment';
 import amqplib from 'amqplib';
 import HttpStatus from 'http-status';
 import humanInterval from 'human-interval';
 import {Utils} from '@natlibfi/melinda-commons';
 import {BLOB_STATE, createApiClient, ApiError} from '@natlibfi/melinda-record-import-commons';
-import {logError, stopContainers, processBlobs} from './utils';
+import {logError, processBlobs} from '../utils';
 import {
-	API_URL, API_USERNAME, API_PASSWORD, API_CLIENT_USER_AGENT, AMQP_URL,
-	JOB_BLOBS_METADATA_CLEANUP, JOB_BLOBS_CONTENT_CLEANUP,
-	JOB_BLOBS_MISSING_RECORDS, JOB_BLOBS_TRANSFORMATION_QUEUE_CLEANUP,
-	JOB_PRUNE_CONTAINERS, JOB_CONTAINERS_HEALTH,
-	BLOBS_METADATA_TTL, BLOBS_CONTENT_TTL, STALE_TRANSFORMATION_PROGRESS_TTL
+
 } from '../config';
 
 const {createLogger} = Utils;
 
-export default function (agenda) {
+export default function (agenda, {
+	terminateTasks, pruneTasks, listTasks,
+	API_URL, API_USERNAME, API_PASSWORD, API_CLIENT_USER_AGENT, AMQP_URL,
+	JOB_BLOBS_METADATA_CLEANUP, JOB_BLOBS_CONTENT_CLEANUP,
+	JOB_BLOBS_MISSING_RECORDS, JOB_BLOBS_TRANSFORMATION_QUEUE_CLEANUP,
+	JOB_PRUNE_TASKS, JOB_TASKS_HEALTH,
+	BLOBS_METADATA_TTL, BLOBS_CONTENT_TTL, STALE_TRANSFORMATION_PROGRESS_TTL
+}) {
 	const logger = createLogger();
 	const client = createApiClient({
 		url: API_URL, username: API_USERNAME, password: API_PASSWORD,
 		userAgent: API_CLIENT_USER_AGENT
 	});
 
-	agenda.define(JOB_BLOBS_METADATA_CLEANUP, {concurrency: 1}, blobsMetadataCleanup);
-	agenda.define(JOB_BLOBS_CONTENT_CLEANUP, {conccurency: 1}, blobsContentCleanup);
-	agenda.define(JOB_BLOBS_MISSING_RECORDS, {concurrency: 1}, blobsMissingRecords);
-	agenda.define(JOB_PRUNE_CONTAINERS, {concurrency: 1}, pruneContainers);
-	agenda.define(JOB_CONTAINERS_HEALTH, {concurrency: 1}, containersHealth);
-	agenda.define(JOB_BLOBS_TRANSFORMATION_QUEUE_CLEANUP, {concurrency: 1}, blobsTransformationQueueCleanup);
+	agenda.define(JOB_BLOBS_METADATA_CLEANUP, {}, blobsMetadataCleanup);
+	agenda.define(JOB_BLOBS_CONTENT_CLEANUP, {}, blobsContentCleanup);
+	agenda.define(JOB_BLOBS_MISSING_RECORDS, {}, blobsMissingRecords);
+	agenda.define(JOB_PRUNE_TASKS, {}, pruneTasksJob);
+	agenda.define(JOB_TASKS_HEALTH, {}, tasksHealth);
+	agenda.define(JOB_BLOBS_TRANSFORMATION_QUEUE_CLEANUP, {}, blobsTransformationQueueCleanup);
 
 	async function blobsMetadataCleanup(_, done) {
 		return blobsCleanup({
@@ -80,10 +82,10 @@ export default function (agenda) {
 
 	async function blobsTransformationQueueCleanup(_, done) {
 		return blobsCleanup({
-			method: 'reQueueBlob',
+			method: 'requeueBlob',
 			ttl: humanInterval(STALE_TRANSFORMATION_PROGRESS_TTL),
 			doneCallback: done,
-			messageCallback: count => `${count} blobs need to have removed from transformation queue`,
+			messageCallback: count => `${count} blobs need to be removed from the transformation queue`,
 			state: [BLOB_STATE.TRANSFORMATION_IN_PROGRESS]
 		});
 	}
@@ -144,7 +146,7 @@ export default function (agenda) {
 				query: {state},
 				filter: blob => {
 					const modificationTime = moment(blob.modificationTime);
-					if (method === 'reQueueBlob') {
+					if (method === 'requeueBlob') {
 						return moment().isAfter(modificationTime.add(ttl));
 					}
 
@@ -164,84 +166,70 @@ export default function (agenda) {
 		}
 
 		async function processCallback(blobs) {
-			return Promise.all(blobs.map(async ({id}) => {
-				try {
-					if (method === 'deleteBlob' || method === 'reQueueBlob') {
-						await channel.deleteQueue(id);
-					}
+			return cleanup(blobs);
 
-					if (method === 'reQueueBlob') {
-						const docker = new Docker();
-						const containers = await docker.listContainers({
-							filters: {
-								label: [
-									'fi.nationallibrary.melinda.record-import.container-type=transform-task',
-									`blobId=${id}`
-								]
+			async function cleanup(blobs) {
+				const blob = blobs[0];
+
+				if (blob) {
+					const {id} = blob;
+
+					try {
+						if (method === 'deleteBlob' || method === 'reQueueBlob') {
+							await channel.deleteQueue(id);
+						}
+
+						if (method === 'requeueBlob') {
+							const tasks = await listTasks({blob: id, type: 'transform'});
+
+							if (tasks.length === 0) {
+								logger.log('warn', `Blob ${id} has no transformer alive. Setting state to PENDING_TRANSFORMATION`);
+								await client.updateState({id, state: BLOB_STATE.PENDING_TRANSFORMATION});
 							}
-						});
-						if (containers.length === 0) {
-							logger.log('warn', `Blob ${id} has no transformer alive. Setting state to PENDING_TRANSFORMATION`);
-							await client.updateState({id, state: BLOB_STATE.PENDING_TRANSFORMATION});
+
+							return cleanup(blobs.slice(1));
 						}
 
-						return true;
-					}
+						await client[method]({id});
 
-					await client[method]({id});
-				} catch (err) {
-					if (err instanceof ApiError && err.status === HttpStatus.NOT_FOUND) {
-						if (method === 'deleteBlob') {
-							logger.log('debug', `Blob ${id} already removed`);
+						if (method !== 'requeueBlob') {
+							await terminateTasks({blob: id});
 						}
-					} else {
+
+						return cleanup(blobs.slice(1));
+					} catch (err) {
+						if (err instanceof ApiError && err.status === HttpStatus.BAD_REQUEST && method === 'deleteBlob') {
+							logger.log('warn', `Couldn't delete blob ${id} because content hasn't yet been deleted`);
+							return cleanup(blobs.slice(1));
+						}
+
+						if (err instanceof ApiError && err.status === HttpStatus.NOT_FOUND) {
+							if (method === 'deleteBlob' || method === 'deleteBlobContent') {
+								logger.log('debug', `Blob ${id} or content already removed`);
+							}
+
+							return blobs.slice(1);
+						}
+
 						logError(err);
-					}
-				} finally {
-					if (method !== 'reQueueBlob') {
-						await stopContainers({
-							label: [
-								'fi.nationallibrary.melinda.record-import.container-type',
-								`blobId=${id}`
-							]
-						});
+						return cleanup(blobs.slice(1));
 					}
 				}
-			}));
+			}
 		}
 	}
 
-	async function pruneContainers(_, done) {
-		const docker = new Docker();
-
+	async function pruneTasksJob(_, done) {
 		try {
-			const result = await docker.pruneContainers({
-				all: true,
-				filters: {
-					label: [
-						'fi.nationallibrary.melinda.record-import.container-type'
-					]
-				}
-			});
-
-			if (Array.isArray(typeof result.ContainersDeleted)) {
-				logger.log('debug', `Removed ${result.ContainersDeleted.length} inactive containers`);
-			}
-		} catch (pruneErr) {
-			if (pruneErr.statusCode !== HttpStatus.CONFLICT) {
-				throw pruneErr;
-			}
+			await pruneTasks();
 		} finally {
 			done();
 		}
 	}
 
-	async function containersHealth(_, done) {
+	async function tasksHealth(_, done) {
 		try {
-			await stopContainers({
-				health: ['unhealthy'],
-				label: ['fi.nationallibrary.melinda.record-import.container-type']
-			});
+			await terminateTasks({unhealthy: true});
 		} finally {
 			done();
 		}
