@@ -101,6 +101,7 @@ export default async ({
 
 	async function terminateTasks({blob, unhealthy = false} = {}) {
 		const filters = genFilter();
+		console.log(filters);
 		const containersInfo = await docker.listContainers({filters});
 
 		if (containersInfo.length > 0) {
