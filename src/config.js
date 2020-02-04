@@ -33,6 +33,8 @@ const {readEnvironmentVariable} = Utils;
 
 export const TZ = readEnvironmentVariable('TZ', {defaultValue: ''});
 
+export const TASK_MODULE = readEnvironmentVariable('TASK_MODULE');
+
 export const API_URL = readEnvironmentVariable('API_URL');
 export const API_USERNAME = readEnvironmentVariable('API_USERNAME');
 export const API_PASSWORD = readEnvironmentVariable('API_PASSWORD');
@@ -46,10 +48,11 @@ export const AMQP_URL = readEnvironmentVariable('AMQP_URL', {defaultValue: 'amqp
 
 export const IMPORTER_CONCURRENCY = readEnvironmentVariable('IMPORTER_CONCURRENCY', {defaultValue: 1, format: v => Number(v)});
 export const TRANSFORMER_CONCURRENCY = readEnvironmentVariable('IMPORTER_CONCURRENCY', {defaultValue: 1, format: v => Number(v)});
-export const CONTAINER_CONCURRENCY = readEnvironmentVariable('CONTAINER_CONCURRENCY', {defaultValue: 5, format: v => Number(v)});
-export const IMPORTER_CONCURRENCY_BLOB = readEnvironmentVariable('CONTAINER_CONCURRENCY', {defaultValue: 1, format: v => Number(v)});
+export const TASK_CONCURRENCY = readEnvironmentVariable('TASK_CONCURRENCY', {defaultValue: 5, format: v => Number(v)});
+export const IMPORTER_CONCURRENCY_BLOB = readEnvironmentVariable('TASK_CONCURRENCY', {defaultValue: 1, format: v => Number(v)});
 
-export const CONTAINER_NETWORKS = readEnvironmentVariable('CONTAINER_NETWORKS', {defaultValue: [], format: v => JSON.parse(v)});
+export const DOCKER_CONTAINER_NETWORKS = readEnvironmentVariable('DOCKER_CONTAINER_NETWORKS', {defaultValue: [], format: v => JSON.parse(v)});
+export const DOCKER_SUPPORTED_API_VERSIONS = ['1.39', '1.40'];
 
 export const BLOBS_METADATA_TTL = readEnvironmentVariable('BLOB_METADATA_TTL');
 export const BLOBS_CONTENT_TTL = readEnvironmentVariable('BLOB_CONTENT_TTL');
@@ -63,8 +66,8 @@ export const JOB_FREQ_BLOBS_METADATA_CLEANUP = readEnvironmentVariable('JOB_FREQ
 export const JOB_FREQ_BLOBS_MISSING_RECORDS = readEnvironmentVariable('JOB_FREQ_BLOBS_MISSING_RECORDS', {defaultValue: '10 seconds'});
 export const JOB_FREQ_BLOBS_TRANSFORMATION_QUEUE_CLEANUP = readEnvironmentVariable('JOB_FREQ_BLOBS_BLOBS_TRANSFORMATION_QUEUE_CLEANUP', {defaultValue: '10 seconds'});
 
-export const JOB_FREQ_CONTAINERS_HEALTH = readEnvironmentVariable('JOB_FREQ_CONTAINERS_HEALTH', {defaultValue: '10 seconds'});
-export const JOB_FREQ_PRUNE_CONTAINERS = readEnvironmentVariable('JOB_FREQ_PRUNE_CONTAINERS', {defaultValue: '10 seconds'});
+export const JOB_FREQ_TASKS_HEALTH = readEnvironmentVariable('JOB_FREQ_TASKS_HEALTH', {defaultValue: '10 seconds'});
+export const JOB_FREQ_PRUNE_TASKS = readEnvironmentVariable('JOB_FREQ_PRUNE_TASKS', {defaultValue: '10 seconds'});
 export const JOB_FREQ_UPDATE_IMAGES = readEnvironmentVariable('JOB_FREQ_UPDATE_IMAGES', {defaultValue: '10 seconds'});
 
 export const IMPORT_OFFLINE_PERIOD = readEnvironmentVariable('IMPORT_OFFLINE_PERIOD', {defaultValue: {}, format: JSON.parse});
@@ -76,8 +79,6 @@ export const MAX_BLOB_IMPORT_TRIES = readEnvironmentVariable('MAX_BLOB_IMPORT_TR
 
 export const API_CLIENT_USER_AGENT = readEnvironmentVariable('API_CLIENT_USER_AGENT', {defaultValue: '_RECORD-IMPORT-CONTROLLER'});
 
-export const SUPPORTED_DOCKER_API_VERSIONS = ['1.39', '1.40'];
-
 export const PROCESS_START_TIME = moment();
 
 export const JOB_BLOBS_PENDING = 'BLOBS_PENDING';
@@ -88,49 +89,6 @@ export const JOB_BLOBS_CONTENT_CLEANUP = 'BLOBS_CONTENT_CLEANUP';
 export const JOB_BLOBS_METADATA_CLEANUP = 'BLOBS_METADATA_CLEANUP';
 export const JOB_BLOBS_MISSING_RECORDS = 'BLOBS_MISSING_RECORDS';
 export const JOB_BLOBS_TRANSFORMATION_QUEUE_CLEANUP = 'BLOBS_TRANSFORMATION_QUEUE_CLEANUP';
-export const JOB_CONTAINERS_HEALTH = 'CONTAINERS_HEALTH';
-export const JOB_PRUNE_CONTAINERS = 'PRUNE_CONTAINERS';
+export const JOB_TASKS_HEALTH = 'TASKS_HEALTH';
+export const JOB_PRUNE_TASKS = 'PRUNE_TASKS';
 export const JOB_UPDATE_IMAGES = 'UPDATE_IMAGES';
-
-export const CONTAINER_TEMPLATE_TRANSFORMER = {
-	Binds: ['/etc/localtime:/etc/localtime:ro'],
-	Labels: {
-		'fi.nationallibrary.melinda.record-import.task': 'true',
-		'fi.nationallibrary.melinda.record-import.container-type': 'transform-task'
-	},
-	Env: [
-		`AMQP_URL=${AMQP_URL}`,
-		`API_URL=${API_URL}`,
-		`API_USERNAME=${API_USERNAME_TRANSFORMER}`,
-		`API_PASSWORD=${API_PASSWORD_TRANSFORMER}`,
-		'ABORT_ON_INVALID_RECORDS=false',
-		`DEBUG=${process.env.DEBUG}`
-	],
-	Healthcheck: {
-		Test: ['CMD-SHELL', 'node node_modules/@natlibfi/melinda-record-import-commons/dist/health-check.js'],
-		Interval: 30000000000,
-		Timeout: 10000000000,
-		Retries: 3
-	}
-};
-
-export const CONTAINER_TEMPLATE_IMPORTER = {
-	Binds: ['/etc/localtime:/etc/localtime:ro'],
-	Labels: {
-		'fi.nationallibrary.melinda.record-import.task': 'true',
-		'fi.nationallibrary.melinda.record-import.container-type': 'import-task'
-	},
-	Env: [
-		`AMQP_URL=${AMQP_URL}`,
-		`API_URL=${API_URL}`,
-		`API_USERNAME=${API_USERNAME_IMPORTER}`,
-		`API_PASSWORD=${API_PASSWORD_IMPORTER}`,
-		`DEBUG=${process.env.DEBUG}`
-	],
-	Healthcheck: {
-		Test: ['CMD-SHELL', 'node node_modules/@natlibfi/melinda-record-import-commons/dist/health-check.js'],
-		Interval: 30000000000,
-		Timeout: 10000000000,
-		Retries: 3
-	}
-};
