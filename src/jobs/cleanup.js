@@ -191,8 +191,8 @@ export default function (agenda, {
 					}
 
 					if (err instanceof ApiError && err.status === HttpStatus.NOT_FOUND) {
-						if (method === 'deleteBlob') {
-							logger.log('debug', `Blob ${id} already removed`);
+						if (method === 'deleteBlob' || method === 'deleteBlobContent') {
+							logger.log('debug', `Blob ${id} or content already removed`);
 						}
 
 						return;
