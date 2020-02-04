@@ -183,11 +183,9 @@ export default function (agenda, {
 						return true;
 					}
 
+					console.log('test');
 					return client[method]({id});
 				} catch (err) {
-					console.log('test');
-					console.log(err);
-
 					if (err instanceof ApiError && err.status === HttpStatus.BAD_REQUEST && method === 'deleteBlob') {
 						logger.log('warn', `Couldn't delete blob ${id} because content hasn't yet been deleted`);
 						return;
