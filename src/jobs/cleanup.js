@@ -184,7 +184,7 @@ export default function (agenda, {
 					}
 
 					await client[method]({id});
-					//return client[method]({id});
+					// Return client[method]({id});
 					console.log(`PASS:${id}`);
 				} catch (err) {
 					console.log('foo');
