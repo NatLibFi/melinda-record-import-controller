@@ -166,45 +166,56 @@ export default function (agenda, {
 		}
 
 		async function processCallback(blobs) {
-			return Promise.all(blobs.map(async ({id}) => {
-				try {
-					if (method === 'deleteBlob' || method === 'reQueueBlob') {
-						await channel.deleteQueue(id);
-					}
+			return cleanup(blobs);
 
-					if (method === 'requeueBlob') {
-						const tasks = await listTasks({blob: id, type: 'transform'});
+			async function cleanup(blobs) {
+				const blob = blobs[0];
 
-						if (tasks.length === 0) {
-							logger.log('warn', `Blob ${id} has no transformer alive. Setting state to PENDING_TRANSFORMATION`);
-							await client.updateState({id, state: BLOB_STATE.PENDING_TRANSFORMATION});
+				if (blob) {
+					const {id} = blob;
+
+					try {
+						if (method === 'deleteBlob' || method === 'reQueueBlob') {
+							await channel.deleteQueue(id);
 						}
 
-						return true;
-					}
+						if (method === 'requeueBlob') {
+							const tasks = await listTasks({blob: id, type: 'transform'});
 
-					return client[method]({id});
-				} catch (err) {
-					if (err instanceof ApiError && err.status === HttpStatus.BAD_REQUEST && method === 'deleteBlob') {
-						logger.log('warn', `Couldn't delete blob ${id} because content hasn't yet been deleted`);
-						return;
-					}
+							if (tasks.length === 0) {
+								logger.log('warn', `Blob ${id} has no transformer alive. Setting state to PENDING_TRANSFORMATION`);
+								await client.updateState({id, state: BLOB_STATE.PENDING_TRANSFORMATION});
+							}
 
-					if (err instanceof ApiError && err.status === HttpStatus.NOT_FOUND) {
-						if (method === 'deleteBlob' || method === 'deleteBlobContent') {
-							logger.log('debug', `Blob ${id} or content already removed`);
+							return cleanup(blobs.slice(1));
 						}
 
-						return;
-					}
+						await client[method]({id});
 
-					logError(err);
-				} finally {
-					if (method !== 'requeueBlob') {
-						await terminateTasks({blob: id});
+						if (method !== 'requeueBlob') {
+							await terminateTasks({blob: id});
+						}
+
+						return cleanup(blobs.slice(1));
+					} catch (err) {
+						if (err instanceof ApiError && err.status === HttpStatus.BAD_REQUEST && method === 'deleteBlob') {
+							logger.log('warn', `Couldn't delete blob ${id} because content hasn't yet been deleted`);
+							return cleanup(blobs.slice(1));
+						}
+
+						if (err instanceof ApiError && err.status === HttpStatus.NOT_FOUND) {
+							if (method === 'deleteBlob' || method === 'deleteBlobContent') {
+								logger.log('debug', `Blob ${id} or content already removed`);
+							}
+
+							return blobs.slice(1);
+						}
+
+						logError(err);
+						return cleanup(blobs.slice(1));
 					}
 				}
-			}));
+			}
 		}
 	}
 
