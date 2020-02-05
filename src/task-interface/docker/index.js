@@ -78,8 +78,9 @@ export default async ({
 		await attachToNetworks();
 
 		const info = await cont.start();
+		const containerId = info.Id || info.id;
 
-		logger.log('debug', info.Id ? `Creation of ${type} container has failed` : `ID of started ${type} container: ${info.Id}`);
+		logger.log('debug', containerId ? `Creation of ${type} container has failed` : `ID of started ${type} container: ${containerId}`);
 
 		function getEnv(env = {}) {
 			return Object.keys(env).map(k => `${k}=${env[k]}`);
