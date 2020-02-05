@@ -79,7 +79,7 @@ export default async ({
 		
 		const info = await cont.start();
 		
-		logger.log('debug', info.Id ? `Creation of ${type} container has failed` : `ID of started ${type} container: ${info.Id}`);
+		logger.log('debug', info.Id ? `Creation of ${type} container has failed` : `ID of started ${type} container: ${info.id}`);
 		
 		function getEnv(env = {}) {
 			return Object.keys(env).map(k => `${k}=${env[k]}`);
@@ -220,7 +220,7 @@ export default async ({
 			
 			try {
 				const {RepoDigests} = await image.inspect();
-				
+								
 				if (RepoDigests && RepoDigests.length > 0) {
 					return pullImage(ref);
 				}

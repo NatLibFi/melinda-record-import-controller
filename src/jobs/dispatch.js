@@ -155,7 +155,7 @@ export default function (agenda, {
 					const profile = await getProfile(profileId, profileCache);
 					const {dispatchCount, canDispatchMore} = await getDispatchCount(profile.id);
 
-					logger.log('debug', `Importer container status for profile ${id}: Can dispatch ${dispatchCount}. Can dispatch more: ${canDispatchMore}`);
+					logger.log('debug', `Importer task status for profile ${id}: Can dispatch ${dispatchCount}. Can dispatch more: ${canDispatchMore}`);
 
 					if (dispatchCount > 0) {
 						if (isOfflinePeriod()) {
@@ -163,20 +163,20 @@ export default function (agenda, {
 							return;
 						}
 
-						logger.log('debug', `Dispatching ${dispatchCount} import containers for blob ${id}`);
+						logger.log('debug', `Dispatching ${dispatchCount} import tasks for blob ${id}`);
 						await dispatchImporters({id, dispatchCount, profile});
 
 						blobsTryCount[id] = blobsTryCount[id] ? blobsTryCount[id] + 1 : 1;
 
 						if (canDispatchMore === false) {
-							logger.log('debug', 'Not processing further blobs because total container limit is exhausted');
+							logger.log('debug', 'Not processing further blobs because total task limit is exhausted');
 							return;
 						}
 
 						return doProcessing({blobs, profilesExhausted});
 					}
 
-					logger.log('debug', `Cannot dispatch importer containers for blob ${id}. Maximum number of containers exhausted.`);
+					logger.log('debug', `Cannot dispatch importer tasks for blob ${id}. Maximum number of tasks exhausted.`);
 					profilesExhausted.push(profileId);
 
 					return doProcessing({blobs, profilesExhausted});
