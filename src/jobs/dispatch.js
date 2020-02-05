@@ -101,6 +101,9 @@ export default function (agenda, {
 					const totalCount = (await listTasks()).length;
 					const transformCount = (await listTasks({type: 'transform'})).length;
 
+					console.log(`TOTAL COUNT:${totalCount}`);
+					console.log(`TRANSFORMER COUNT:${tranformCount}`);
+
 					return transformCount < TRANSFORMER_CONCURRENCY && totalCount < TASK_CONCURRENCY;
 				}
 			}
