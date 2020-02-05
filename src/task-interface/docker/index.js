@@ -83,11 +83,7 @@ export default async ({
 		const info = await cont.start();
 		logger.log('debug', `CHECK:PASS START:${info.Id}`);
 
-		if (info.Id === undefined) {
-			logger.log('debug', `Creation of ${type} container has failed`);
-		} else {
-			logger.log('debug', `ID of started ${type} container: ${info.Id}`);
-		}
+		logger.log('debug', info.Id ? `Creation of ${type} container has failed` : `ID of started ${type} container: ${info.Id}`);
 
 		function getEnv(env = {}) {
 			return Object.keys(env).map(k => `${k}=${env[k]}`);
@@ -96,7 +92,8 @@ export default async ({
 		async function attachToNetworks() {
 			return Promise.all(DOCKER_CONTAINER_NETWORKS.map(async networkName => {
 				const network = await docker.getNetwork(networkName);
-				await network.connect({
+				logger.log('debug', `Connecting ${cont.Id} to network ${network}`);
+				return network.connect({
 					Container: cont.Id
 				});
 			}));
