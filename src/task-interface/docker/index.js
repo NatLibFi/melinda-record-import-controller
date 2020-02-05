@@ -88,7 +88,7 @@ export default async ({
 		async function attachToNetworks() {
 			return Promise.all(DOCKER_CONTAINER_NETWORKS.map(async networkName => {
 				const network = await docker.getNetwork(networkName);
-				
+
 				return network.connect({
 					Container: cont.id
 				});
