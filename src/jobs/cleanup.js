@@ -184,7 +184,7 @@ export default function (agenda, {
 					}
 
 					console.log(`FOO.${method}:${id}`);
-					await client[method]({id});					
+					await client[method]({id});
 				} catch (err) {
 					console.log('foo');
 					if (err instanceof ApiError && err.status === HttpStatus.BAD_REQUEST && method === 'deleteBlob') {
