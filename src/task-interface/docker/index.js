@@ -76,7 +76,7 @@ export default async ({
 		logger.log('debug', `CHECK:${JSON.stringify(manifest)}`);
 		const cont = await docker.createContainer(manifest);
 
-		logger.log('debug', 'CHECK:PASS CREATE');
+		logger.log('debug', `CHECK:PASS CREATE: ${cont}`);
 		await attachToNetworks();
 
 		logger.log('debug', 'CHECK:PASS ATTACH');
