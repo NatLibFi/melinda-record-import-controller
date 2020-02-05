@@ -73,11 +73,15 @@ export default async ({
 			`BLOB_ID=${blob}`
 		]);
 
+		logger.log('debug', `CHECK:${JSON.stringify(manifest)}`);
 		const cont = await docker.createContainer(manifest);
 
+		logger.log('debug', 'CHECK:PASS CREATE');
 		await attachToNetworks();
 
+		logger.log('debug', 'CHECK:PASS ATTACH');
 		const info = await cont.start();
+		logger.log('debug', `CHECK:PASS START:${info.Id}`);
 
 		if (info.Id === undefined) {
 			logger.log('debug', `Creation of ${type} container has failed`);
