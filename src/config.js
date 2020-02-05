@@ -47,9 +47,9 @@ export const MONGO_URI = readEnvironmentVariable('MONGO_URI', {defaultValue: 'mo
 export const AMQP_URL = readEnvironmentVariable('AMQP_URL', {defaultValue: 'amqp://127.0.0.1:5672'});
 
 export const IMPORTER_CONCURRENCY = readEnvironmentVariable('IMPORTER_CONCURRENCY', {defaultValue: 1, format: v => Number(v)});
-export const TRANSFORMER_CONCURRENCY = readEnvironmentVariable('IMPORTER_CONCURRENCY', {defaultValue: 1, format: v => Number(v)});
+export const TRANSFORMER_CONCURRENCY = readEnvironmentVariable('TRANSFORMER_CONCURRENCY', {defaultValue: 1, format: v => Number(v)});
 export const TASK_CONCURRENCY = readEnvironmentVariable('TASK_CONCURRENCY', {defaultValue: 5, format: v => Number(v)});
-export const IMPORTER_CONCURRENCY_BLOB = readEnvironmentVariable('TASK_CONCURRENCY', {defaultValue: 1, format: v => Number(v)});
+export const IMPORTER_CONCURRENCY_BLOB = readEnvironmentVariable('IMPORTER_CONCURRENCY_BLOB', {defaultValue: 1, format: v => Number(v)});
 
 export const DOCKER_CONTAINER_NETWORKS = readEnvironmentVariable('DOCKER_CONTAINER_NETWORKS', {defaultValue: [], format: v => JSON.parse(v)});
 export const DOCKER_SUPPORTED_API_VERSIONS = ['1.39', '1.40'];
