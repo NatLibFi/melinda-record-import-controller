@@ -223,9 +223,9 @@ export default async ({
 			const ref = refs[0];
 
 			if (ref) {
-				const result = await getImage();
-
 				try {
+					const result = await getImage();
+
 					if (result && result.image.RepoDigests && result.image.RepoDigests.length > 0 && result.pulled === false) {
 						await pullImage();
 					}
@@ -241,21 +241,21 @@ export default async ({
 			async function getImage() {
 				try {
 					const image = docker.getImage(ref);
-					return {image: await image.inspect()};
+
+					return {
+						image: await image.inspect(),
+						pulled: false
+					};
 				} catch (err) {
 					if (err.statusCode === HttpStatus.NOT_FOUND) {
-						try {
-							await pullImage(ref);
+						await pullImage(ref);
 
-							const image = docker.getImage(ref);
+						const image = docker.getImage(ref);
 
-							return {
-								image: await image.inspect(),
-								pulled: true
-							};
-						} catch (err) {
-							logError(err);
-						}
+						return {
+							image: await image.inspect(),
+							pulled: true
+						};
 					}
 				}
 			}
