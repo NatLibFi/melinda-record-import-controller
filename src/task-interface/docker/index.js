@@ -101,8 +101,6 @@ export default async ({
 		const filters = genFilter();
 		const containersInfo = await docker.listContainers({filters});
 
-		console.log(`TERMINATED CONTAINERS:${JSON.stringify(filters)}:${containersInfo.length}`);
-
 		if (containersInfo.length > 0) {
 			await Promise.all(containersInfo.map(async info => {
 				try {
