@@ -73,15 +73,11 @@ export default async ({
 			`BLOB_ID=${blob}`
 		]);
 
-		logger.log('debug', `CHECK:${JSON.stringify(manifest)}`);
 		const cont = await docker.createContainer(manifest);
 
-		logger.log('debug', `CHECK:PASS CREATE: ${cont}`);
 		await attachToNetworks();
 
-		logger.log('debug', 'CHECK:PASS ATTACH');
 		const info = await cont.start();
-		logger.log('debug', `CHECK:PASS START:${info.Id}`);
 
 		logger.log('debug', info.Id ? `Creation of ${type} container has failed` : `ID of started ${type} container: ${info.Id}`);
 
@@ -92,9 +88,9 @@ export default async ({
 		async function attachToNetworks() {
 			return Promise.all(DOCKER_CONTAINER_NETWORKS.map(async networkName => {
 				const network = await docker.getNetwork(networkName);
-				logger.log('debug', `Connecting ${cont.Id} to network ${network}`);
+				
 				return network.connect({
-					Container: cont.Id
+					Container: cont.id
 				});
 			}));
 		}
