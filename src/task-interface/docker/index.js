@@ -79,7 +79,7 @@ export default async ({
 
 		const info = await cont.start();
 
-		logger.log('debug', info.Id ? `Creation of ${type} container has failed` : `ID of started ${type} container: ${info.id}`);
+		logger.log('debug', info.Id ? `Creation of ${type} container has failed` : `ID of started ${type} container: ${info.Id}`);
 
 		function getEnv(env = {}) {
 			return Object.keys(env).map(k => `${k}=${env[k]}`);
