@@ -215,62 +215,80 @@ export default async ({
 	async function updateImages(refs) {
 		logger.log('debug', `Checking updates for ${refs.length} images  in the registry`);
 
-		await Promise.all(refs.map(async ref => {
-			const image = docker.getImage(ref);
-
-			try {
-				const {RepoDigests} = await image.inspect();
-
-				if (RepoDigests && RepoDigests.length > 0) {
-					return pullImage(ref);
-				}
-			} catch (err) {
-				if (err.statusCode === HttpStatus.NOT_FOUND) {
-					logger.log('debug', `Did not found image ${ref} locally, trying to pull it from remote`);
-
-					try {
-						return pullImage(ref);
-						// Invalid image ref or another error
-					} catch (err) {
-						logError(err);
-						return;
-					}
-				}
-
-				logError(err);
-			}
-		}));
+		await update(refs);
 
 		logger.log('debug', 'Done checking updates for images in the registry');
 
-		async function pullImage(ref) {
-			const stream = await docker.pull(ref);
+		async function update(refs) {
+			const ref = refs[0];
 
-			return new Promise((resolve, reject) => {
-				let pullingImage;
+			if (ref) {
+				const result = await getImage();
 
-				docker.modem.followProgress(stream, finishCallback, progressCallback);
-
-				function finishCallback(err) {
-					if (err) {
-						return reject(err);
+				try {
+					if (result && result.image.RepoDigests && result.image.RepoDigests.length > 0 && result.pulled === false) {
+						await pullImage();
 					}
 
-					resolve();
+					return update(refs.slice(1));
+				} catch (err) {
+					logError(err);
 				}
 
-				function progressCallback(event) {
-					if (/^Status: Downloaded newer image/.test(event.status)) {
-						logger.log('info', `Completed dowloading new version of ${ref}`);
-						return;
-					}
+				return update(refs.slice(1));
+			}
 
-					if (/^Pulling fs layer/.test(event.status) && !pullingImage) {
-						logger.log('info', `Image ${ref} has been updated in the registry or does not exist locally. Pulling from the registry`);
-						pullingImage = true;
+			async function getImage() {
+				try {
+					const image = docker.getImage(ref);
+					return {image: await image.inspect()};
+				} catch (err) {
+					if (err.statusCode === HttpStatus.NOT_FOUND) {
+						try {
+							await pullImage(ref);
+
+							const image = docker.getImage(ref);
+
+							return {
+								image: await image.inspect(),
+								pulled: true
+							};
+						} catch (err) {
+							logError(err);
+						}
 					}
 				}
-			});
+			}
+
+			async function pullImage() {
+				const stream = await docker.pull(ref);
+
+				return new Promise((resolve, reject) => {
+					let pullingImage;
+
+					docker.modem.followProgress(stream, finishCallback, progressCallback);
+
+					function finishCallback(err) {
+						if (err) {
+							return reject(err);
+						}
+
+						resolve();
+					}
+
+					function progressCallback(event) {
+						if (/^Status: Downloaded newer image/.test(event.status)) {
+							logger.log('info', `Completed dowloading new version of ${ref}`);
+							return;
+						}
+
+						if (/^Pulling fs layer/.test(event.status) && !pullingImage) {
+							logger.log('info', `Image ${ref} has been updated in the registry or does not exist locally. Pulling from the registry`);
+							pullingImage = true;
+						}
+					}
+				});
+			}
 		}
 	}
 };
