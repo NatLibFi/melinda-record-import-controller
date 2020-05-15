@@ -313,8 +313,8 @@ export default function (agenda) {
 
 		try {
 			await cont.start();
-			logger.log('info', `${cont.Name}:${cont.name}`);
-			logger.log('info', `Started ${type} container ${cont.id}`);
+			const data = await cont.inspect();
+			logger.log('info', `Started ${type} container ${cont.id} (${data.name}:${data.Name}:${JSON.stringify(Object.keys(data))})`);
 		} catch (err) {
 			logger.log('error', `Creation of ${type} container ${cont.id} has failed`);
 			throw err;
