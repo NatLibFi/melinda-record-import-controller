@@ -312,12 +312,18 @@ export default function (agenda) {
 		await attachToNetworks();
 
 		try {
-			await cont.start();
-			const data = await cont.inspect();
-			logger.log('info', `Started ${type} container ${cont.id} (${data.name}:${data.Name}:${JSON.stringify(Object.keys(data))})`);
+			await cont.start();			
+			const name = await getContainerName(cont);
+
+			logger.log('info', `Started ${type} container ${name} (${cont.id})`);
 		} catch (err) {
 			logger.log('error', `Creation of ${type} container ${cont.id} has failed`);
 			throw err;
+		}
+
+		async function getContainernName(cont) {
+			const {Name} = await cont.inspect();
+			return Name.replace(new RegExp('^/'), '');
 		}
 
 		function getEnv(env = {}) {
