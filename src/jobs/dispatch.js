@@ -96,7 +96,7 @@ export default function (agenda) {
 						}
 
 						logger.log('warn', `Could not dispatch transformer for blob ${id} because total number of containers is exhausted`);
-						return dispatch(blobs.slice(1));
+						return;
 					} catch (err) {
 						logError(err);
 					}
