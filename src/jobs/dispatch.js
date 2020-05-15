@@ -313,7 +313,7 @@ export default function (agenda) {
 
 		const info = await cont.start();
 
-		console.log(JSON.stringify(info,undefined,2));
+		console.log(JSON.stringify(info, undefined, 2));
 
 		if (info.id === undefined) {
 			logger.log('error', `Creation of ${type} container has failed`);
