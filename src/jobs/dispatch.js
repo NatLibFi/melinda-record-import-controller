@@ -96,7 +96,7 @@ export default function (agenda) {
 						}
 
 						logger.log('warn', `Could not dispatch transformer for blob ${id} because total number of containers is exhausted`);
-						return dispatch(blobs.slice(1));
+						return;
 					} catch (err) {
 						logError(err);
 					}
@@ -311,12 +311,19 @@ export default function (agenda) {
 
 		await attachToNetworks();
 
-		const info = await cont.start();
+		try {
+			await cont.start();
+			const name = await getContainerName(cont);
 
-		if (info.id === undefined) {
-			logger.log('error', `Creation of ${type} container has failed`);
-		} else {
-			logger.log('info', `ID of started ${type} container: ${info.id}`);
+			logger.log('info', `Started ${type} container ${name} (${cont.id})`);
+		} catch (err) {
+			logger.log('error', `Creation of ${type} container ${cont.id} has failed`);
+			throw err;
+		}
+
+		async function getContainerName(cont) {
+			const {Name} = await cont.inspect();
+			return Name.replace(/^\//, '');
 		}
 
 		function getEnv(env = {}) {
