@@ -23,3 +23,11 @@ steps:
       from_secret: docker_username
     password:
       from_secret: docker_password
+---
+kind: secret
+name: docker_username
+data: +0udimkBLHwfXyRlRl8qYjGjNqiHnD0hFhUl8HKcU+f6lFxxrHeiQ9IP/i3rLFinmF0=
+---
+kind: secret
+name: docker_password
+data: QBn+0EQUlji0ZzcsJ6idFhZjlkMPEmm28gjpQcIj04xuUvoytXVKZV9rRp3pj+ZB5+DpZGn6XM5zXLgUerBAD+f68LQZL2noxstVhCUEd5JXF9mYFYK5kXL24yI=

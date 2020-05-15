@@ -314,9 +314,9 @@ export default function (agenda) {
 		const info = await cont.start();
 
 		if (info.id === undefined) {
-			logger.log('debug', `Creation of ${type} container has failed`);
+			logger.log('error', `Creation of ${type} container has failed`);
 		} else {
-			logger.log('debug', `ID of started ${type} container: ${info.id}`);
+			logger.log('info', `ID of started ${type} container: ${info.id}`);
 		}
 
 		function getEnv(env = {}) {
