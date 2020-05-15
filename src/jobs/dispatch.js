@@ -312,7 +312,7 @@ export default function (agenda) {
 		await attachToNetworks();
 
 		try {
-			await cont.start();			
+			await cont.start();
 			const name = await getContainerName(cont);
 
 			logger.log('info', `Started ${type} container ${name} (${cont.id})`);
@@ -321,9 +321,9 @@ export default function (agenda) {
 			throw err;
 		}
 
-		async function getContainernName(cont) {
+		async function getContainerName(cont) {
 			const {Name} = await cont.inspect();
-			return Name.replace(new RegExp('^/'), '');
+			return Name.replace(/^\//, '');
 		}
 
 		function getEnv(env = {}) {
