@@ -311,14 +311,12 @@ export default function (agenda) {
 
 		await attachToNetworks();
 
-		const info = await cont.start();
-
-		console.log(JSON.stringify(info, undefined, 2));
-
-		if (info.id === undefined) {
-			logger.log('error', `Creation of ${type} container has failed`);
-		} else {
-			logger.log('info', `ID of started ${type} container: ${info.id}`);
+		try {
+			await cont.start();
+			logger.log('info', `Started ${type} container ${cont.id}`);
+		} catch (err) {
+			logger.log('error', `Creation of ${type} container ${cont.id} has failed`);
+			throw err;
 		}
 
 		function getEnv(env = {}) {
