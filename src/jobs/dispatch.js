@@ -131,7 +131,7 @@ export default function (agenda) {
 			done();
 		}
 
-		async function processCallback(blobs) {
+		async function processCallback(blobs, justStateCheck) {
 			Object.keys(blobsTryCount).forEach(({id}) => {
 				if (blobs.some(({id: otherId}) => otherId === id)) {
 					return;
@@ -140,7 +140,7 @@ export default function (agenda) {
 				delete blobsTryCount[id];
 			});
 
-			doProcessing({blobs});
+			await doProcessing({blobs, justStateCheck});
 
 			async function doProcessing({blobs, profilesExhausted = []}) {
 				const blob = blobs.shift();
@@ -154,7 +154,7 @@ export default function (agenda) {
 						return doProcessing({blobs, profilesExhausted});
 					}
 
-					if (profilesExhausted.includes(profileId)) {
+					if (profilesExhausted.includes(profileId) || justStateCheck) {
 						return doProcessing({blobs, profilesExhausted});
 					}
 
@@ -165,13 +165,13 @@ export default function (agenda) {
 						if (isOfflinePeriod()) {
 							logger.log('debug', 'Not dispatching importers during offline period');
 						} else {
-							logger.log('debug', `Dispatching ${dispatchCount} import containers for blob ${id}`);
+							logger.log('debug', `Dispatching 1 import containers for blob ${id}`);
 							await dispatchImporters({id, docker, dispatchCount, profile});
-
 							blobsTryCount[id] = blobsTryCount[id] ? blobsTryCount[id] + 1 : 1;
 
-							if (totalLimitAfterDispatch <= 0) {
+							if (totalLimitAfterDispatch < 1) {
 								logger.log('debug', 'Not processing further blobs because total container limit is exhausted');
+								profilesExhausted.push(profileId);
 								return;
 							}
 						}
@@ -228,16 +228,16 @@ export default function (agenda) {
 					const availTotal = CONTAINER_CONCURRENCY - total;
 
 					if (availImporters > 0 && availTotal > 0) {
-						if (availTotal >= availImporters) {
+						if (availTotal > availImporters) {
 							return {
-								dispatchCount: availImporters,
-								totalLimitAfterDispatch: availTotal - availImporters
+								dispatchCount: 1,
+								totalLimitAfterDispatch: availImporters - 1
 							};
 						}
 
 						return {
-							dispatchCount: availImporters - availTotal,
-							totalLimitAfterDispatch: availTotal - availImporters
+							dispatchCount: 1,
+							totalLimitAfterDispatch: availTotal - 1
 						};
 					}
 
