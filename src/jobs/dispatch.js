@@ -159,14 +159,14 @@ export default function (agenda) {
 					}
 
 					const profile = await getProfile(profileId, profileCache);
-					const {dispatchCount, totalLimitAfterDispatch} = await getDispatchCount(profile);
+					const {dispatch, totalLimitAfterDispatch} = await getDispatchCount(profile);
 
-					if (dispatchCount > 0) {
+					if (dispatch) {
 						if (isOfflinePeriod()) {
 							logger.log('debug', 'Not dispatching importers during offline period');
 						} else {
 							logger.log('debug', `Dispatching 1 import containers for blob ${id}`);
-							await dispatchImporters({id, docker, dispatchCount, profile});
+							await dispatchImporter({id, docker, profile});
 							blobsTryCount[id] = blobsTryCount[id] ? blobsTryCount[id] + 1 : 1;
 
 							if (totalLimitAfterDispatch < 1) {
@@ -230,13 +230,13 @@ export default function (agenda) {
 					if (availImporters > 0 && availTotal > 0) {
 						if (availTotal > availImporters) {
 							return {
-								dispatchCount: 1,
+								dispatch: true,
 								totalLimitAfterDispatch: availImporters - 1
 							};
 						}
 
 						return {
-							dispatchCount: 1,
+							dispatchCount: true,
 							totalLimitAfterDispatch: availTotal - 1
 						};
 					}
@@ -244,7 +244,7 @@ export default function (agenda) {
 					return {dispatchCount: 0};
 				}
 
-				async function dispatchImporters({id, docker, dispatchCount, profile}) {
+				async function dispatchImporter({id, docker, profile}) {
 					return Promise.all(map(async () => {
 						try {
 							await dispatchContainer({
@@ -261,7 +261,7 @@ export default function (agenda) {
 					}));
 
 					function map(cb) {
-						return new Array(dispatchCount).fill(0).map(cb);
+						return new Array(1).fill(0).map(cb);
 					}
 				}
 			}
