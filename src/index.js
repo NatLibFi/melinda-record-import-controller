@@ -36,7 +36,7 @@ import {
 	JOB_BLOBS_PENDING, JOB_BLOBS_TRANSFORMED, JOB_BLOBS_ABORTED,
 	JOB_BLOBS_METADATA_CLEANUP, JOB_BLOBS_CONTENT_CLEANUP, JOB_BLOBS_MISSING_RECORDS,
 	JOB_CONTAINERS_HEALTH, JOB_PRUNE_CONTAINERS, JOB_UPDATE_IMAGES,
-	JOB_FREQ_BLOBS_PENDING, JOB_FREQ_BLOBS_TRANSFORMED,	JOB_FREQ_BLOBS_ABORTED,
+	JOB_FREQ_BLOBS_PENDING, JOB_FREQ_BLOBS_TRANSFORMED, JOB_FREQ_BLOBS_ABORTED,
 	JOB_FREQ_CONTAINERS_HEALTH, JOB_FREQ_PRUNE_CONTAINERS, JOB_FREQ_UPDATE_IMAGES,
 	JOB_FREQ_BLOBS_METADATA_CLEANUP, JOB_FREQ_BLOBS_CONTENT_CLEANUP,
 	JOB_FREQ_BLOBS_MISSING_RECORDS, JOB_BLOBS_TRANSFORMATION_QUEUE_CLEANUP,
@@ -49,7 +49,7 @@ run();
 
 async function run() {
 	const Logger = createLogger();
-	const Mongo = await MongoClient.connect(MONGO_URI, {useNewUrlParser: true});
+	const Mongo = await MongoClient.connect(MONGO_URI, {useNewUrlParser: true, useUnifiedTopology: true});
 
 	if (await isSupportedDockerVersion() === false) {
 		Logger.log('error', 'Docker API version is not supported');
@@ -67,7 +67,7 @@ async function run() {
 		.on('uncaughtException', handleExit);
 
 	await initDb();
-	const agenda = new Agenda({mongo: Mongo.db()});
+	const agenda = new Agenda({mongo: Mongo.db(), defaultConcurrency: 1});
 
 	// Agenda.sort({nextRunAt: 1});
 

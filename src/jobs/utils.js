@@ -72,7 +72,7 @@ export async function processBlobs({client, query, processCallback, messageCallb
 				const filteredBlobs = blobs.filter(filter);
 
 				blobsTotal += filteredBlobs.length;
-				pendingProcessors.push(processCallback(filteredBlobs));
+				pendingProcessors.push(processCallback(filteredBlobs, pendingProcessors.length !== 0));
 			})
 			.on('end', () => {
 				if (messageCallback) {
