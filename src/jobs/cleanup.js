@@ -38,8 +38,9 @@ import {
 	API_URL, API_USERNAME, API_PASSWORD, API_CLIENT_USER_AGENT, AMQP_URL,
 	JOB_BLOBS_METADATA_CLEANUP, JOB_BLOBS_CONTENT_CLEANUP,
 	JOB_BLOBS_MISSING_RECORDS, JOB_BLOBS_TRANSFORMATION_QUEUE_CLEANUP,
-	JOB_PRUNE_CONTAINERS, JOB_CONTAINERS_HEALTH,
-	BLOBS_METADATA_TTL, BLOBS_CONTENT_TTL, STALE_TRANSFORMATION_PROGRESS_TTL
+	JOB_BLOBS_PROCESSING_QUEUE_CLEANUP, JOB_PRUNE_CONTAINERS, JOB_CONTAINERS_HEALTH,
+	BLOBS_METADATA_TTL, BLOBS_CONTENT_TTL, STALE_TRANSFORMATION_PROGRESS_TTL,
+	STALE_PROCESSING_PROGRESS_TTL
 } from '../config';
 
 const {createLogger} = Utils;
@@ -57,6 +58,7 @@ export default function (agenda) {
 	agenda.define(JOB_PRUNE_CONTAINERS, {concurrency: 1}, pruneContainers);
 	agenda.define(JOB_CONTAINERS_HEALTH, {concurrency: 1}, containersHealth);
 	agenda.define(JOB_BLOBS_TRANSFORMATION_QUEUE_CLEANUP, {concurrency: 1}, blobsTransformationQueueCleanup);
+	agenda.define(JOB_BLOBS_PROCESSING_QUEUE_CLEANUP, {concurrency: 1}, blobsProcessingQueueCleanup);
 
 	async function blobsMetadataCleanup(_, done) {
 		return blobsCleanup({
@@ -88,6 +90,16 @@ export default function (agenda) {
 		});
 	}
 
+	async function blobsProcessingQueueCleanup(_, done) {
+		return blobsCleanup({
+			method: 'abortBlob',
+			ttl: humanInterval(STALE_PROCESSING_PROGRESS_TTL),
+			doneCallback: done,
+			messageCallback: count => `${count} blobs need to abort for restart`,
+			state: [BLOB_STATE.PROCESSING]
+		});
+	}
+
 	async function blobsMissingRecords(_, done) {
 		let connection;
 		let channel;
@@ -98,7 +110,7 @@ export default function (agenda) {
 
 			await processBlobs({
 				client, processCallback,
-				query: {state: BLOB_STATE.TRANSFORMED}
+				query: {state: BLOB_STATE.PROCESSING}
 			});
 		} catch (err) {
 			logError(err);
@@ -166,8 +178,28 @@ export default function (agenda) {
 		async function processCallback(blobs) {
 			return Promise.all(blobs.map(async ({id}) => {
 				try {
-					if (method === 'deleteBlob' || method === 'reQueueBlob') {
+					if (method === 'deleteBlob' || method === 'reQueueBlob' || method === 'abortBlob') {
 						await channel.deleteQueue(id);
+					}
+
+					if (method === 'abortBlob') {
+						const docker = new Docker();
+						const containers = await docker.listContainers({
+							filters: {
+								label: [
+									'fi.nationallibrary.melinda.record-import.container-type=import-task',
+									`blobId=${id}`
+								]
+							}
+						});
+
+						if (containers.length === 0) {
+							logger.log('warn', `Blob ${id} has no importer alive. Setting state to ABORTED`);
+							await client.setAborted({id})
+							await client.deleteBlobContent({id});
+						}
+
+						return true;
 					}
 
 					if (method === 'reQueueBlob') {
