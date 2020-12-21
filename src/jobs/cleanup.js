@@ -195,7 +195,7 @@ export default function (agenda) {
 
 						if (containers.length === 0) {
 							logger.log('warn', `Blob ${id} has no importer alive. Setting state to ABORTED`);
-							await client.setAborted({id})
+							await client.setAborted({id});
 							await client.deleteBlobContent({id});
 						}
 

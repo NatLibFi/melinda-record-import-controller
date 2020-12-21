@@ -118,7 +118,6 @@ export default function (agenda) {
 
 	async function blobsProcessing(_, done) {
 		logger.log('debug', 'Checking blobs in processing');
-		const profileCache = {};
 
 		try {
 			await processBlobs({
@@ -133,7 +132,6 @@ export default function (agenda) {
 		}
 
 		async function processCallback(blobs) {
-
 			await doProcessing({blobs});
 
 			async function doProcessing({blobs}) {
@@ -153,7 +151,6 @@ export default function (agenda) {
 			}
 		}
 	}
-
 
 	async function blobsTransformed({attrs: {data: blobsTryCount}}, done) {
 		logger.log('debug', 'Checking transformed blobs');
@@ -281,7 +278,7 @@ export default function (agenda) {
 				}
 
 				async function dispatchImporter({id, docker, profile}) {
-					logger.log('debug', "Dispatching importer")
+					logger.log('debug', 'Dispatching importer');
 					return Promise.all(map(async () => {
 						try {
 							await dispatchContainer({
