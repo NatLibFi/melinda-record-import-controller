@@ -27,9 +27,7 @@
 */
 
 import moment from 'moment';
-import {Utils} from '@natlibfi/melinda-commons';
-
-const {readEnvironmentVariable} = Utils;
+import {readEnvironmentVariable} from '@natlibfi/melinda-backend-commons';
 
 export const TZ = readEnvironmentVariable('TZ', {defaultValue: ''});
 
