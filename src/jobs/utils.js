@@ -28,9 +28,7 @@
 */
 
 import Docker from 'dockerode';
-import {Utils} from '@natlibfi/melinda-commons';
-
-const {createLogger} = Utils;
+import {createLogger} from '@natlibfi/melinda-backend-commons';
 
 export async function stopContainers(filters) {
 	const logger = createLogger();

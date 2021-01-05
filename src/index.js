@@ -26,7 +26,7 @@
 *
 */
 
-import {Utils} from '@natlibfi/melinda-commons';
+import {createLogger, handleInterrupt} from '@natlibfi/melinda-backend-commons';
 import {MongoClient, MongoError} from 'mongodb';
 import Docker from 'dockerode';
 import Agenda from 'agenda';
@@ -43,8 +43,6 @@ import {
 	JOB_FREQ_BLOBS_TRANSFORMATION_QUEUE_CLEANUP, JOB_FREQ_BLOBS_PROCESSING_QUEUE_CLEANUP,
 	JOB_BLOBS_PROCESSING_QUEUE_CLEANUP, JOB_FREQ_BLOBS_PROCESSING, JOB_BLOBS_PROSESSING
 } from './config';
-
-const {createLogger, handleInterrupt} = Utils;
 
 run();
 

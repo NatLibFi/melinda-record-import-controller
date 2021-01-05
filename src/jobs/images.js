@@ -28,15 +28,13 @@
 */
 
 import Docker from 'dockerode';
-import {Utils} from '@natlibfi/melinda-commons';
+import {createLogger} from '@natlibfi/melinda-backend-commons';
 import {createApiClient} from '@natlibfi/melinda-record-import-commons';
 import {logError} from './utils';
 import {
 	API_URL, API_USERNAME, API_PASSWORD,
 	API_CLIENT_USER_AGENT, JOB_UPDATE_IMAGES
 } from '../config';
-
-const {createLogger} = Utils;
 
 export default function (agenda) {
 	const logger = createLogger();

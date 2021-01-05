@@ -31,7 +31,7 @@ import moment from 'moment';
 import amqplib from 'amqplib';
 import HttpStatus from 'http-status';
 import humanInterval from 'human-interval';
-import {Utils} from '@natlibfi/melinda-commons';
+import {createLogger} from '@natlibfi/melinda-backend-commons-commons';
 import {BLOB_STATE, createApiClient, ApiError} from '@natlibfi/melinda-record-import-commons';
 import {logError, stopContainers, processBlobs} from './utils';
 import {
@@ -42,8 +42,6 @@ import {
 	BLOBS_METADATA_TTL, BLOBS_CONTENT_TTL, STALE_TRANSFORMATION_PROGRESS_TTL,
 	STALE_PROCESSING_PROGRESS_TTL
 } from '../config';
-
-const {createLogger} = Utils;
 
 export default function (agenda) {
 	const logger = createLogger();

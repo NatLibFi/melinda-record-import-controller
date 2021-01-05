@@ -29,7 +29,8 @@
 
 import moment from 'moment';
 import Docker from 'dockerode';
-import {Utils} from '@natlibfi/melinda-commons';
+import {createLogger} from '@natlibfi/melinda-backend-commons';
+import {clone} from '@natlibfi/melinda-commons';
 import {BLOB_STATE, createApiClient} from '@natlibfi/melinda-record-import-commons';
 import {logError, stopContainers, processBlobs} from './utils';
 import {
@@ -41,7 +42,6 @@ import {
 } from '../config';
 
 export default function (agenda) {
-	const {createLogger, clone} = Utils;
 	const logger = createLogger();
 	const client = createApiClient({
 		url: API_URL, username: API_USERNAME, password: API_PASSWORD,
