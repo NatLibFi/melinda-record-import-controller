@@ -31,7 +31,7 @@ import moment from 'moment';
 import amqplib from 'amqplib';
 import HttpStatus from 'http-status';
 import humanInterval from 'human-interval';
-import {createLogger} from '@natlibfi/melinda-backend-commons-commons';
+import {createLogger} from '@natlibfi/melinda-backend-commons';
 import {BLOB_STATE, createApiClient, ApiError} from '@natlibfi/melinda-record-import-commons';
 import {logError, stopContainers, processBlobs} from './utils';
 import {
