@@ -336,6 +336,7 @@ export default function (agenda) {
 
 		manifest.Labels.blobId = blob;
 		manifest.Labels.profile = profile;
+		manifest.name = manifest.name + profile + '-' + blob;
 		manifest.Env.push(`PROFILE_ID=${profile}`);
 		manifest.Env.push(`BLOB_ID=${blob}`);
 

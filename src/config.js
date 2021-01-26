@@ -94,6 +94,7 @@ export const JOB_PRUNE_CONTAINERS = 'PRUNE_CONTAINERS';
 export const JOB_UPDATE_IMAGES = 'UPDATE_IMAGES';
 
 export const CONTAINER_TEMPLATE_TRANSFORMER = {
+	name: 'record-import-transformer-',
 	Binds: ['/etc/localtime:/etc/localtime:ro'],
 	Labels: {
 		'fi.nationallibrary.melinda.record-import.task': 'true',
@@ -105,8 +106,7 @@ export const CONTAINER_TEMPLATE_TRANSFORMER = {
 		`API_USERNAME=${API_USERNAME_TRANSFORMER}`,
 		`API_PASSWORD=${API_PASSWORD_TRANSFORMER}`,
 		'ABORT_ON_INVALID_RECORDS=false',
-		`LOG_LEVEL=${process.env.LOG_LEVEL}`,
-		`DEBUG=${process.env.DEBUG}`
+		`LOG_LEVEL=${process.env.LOG_LEVEL}`
 	],
 	Healthcheck: {
 		Test: ['CMD-SHELL', 'node node_modules/@natlibfi/melinda-record-import-commons/dist/health-check.js'],
@@ -117,6 +117,7 @@ export const CONTAINER_TEMPLATE_TRANSFORMER = {
 };
 
 export const CONTAINER_TEMPLATE_IMPORTER = {
+	name: 'record-import-importer-',
 	Binds: ['/etc/localtime:/etc/localtime:ro'],
 	Labels: {
 		'fi.nationallibrary.melinda.record-import.task': 'true',
@@ -127,8 +128,7 @@ export const CONTAINER_TEMPLATE_IMPORTER = {
 		`API_URL=${API_URL}`,
 		`API_USERNAME=${API_USERNAME_IMPORTER}`,
 		`API_PASSWORD=${API_PASSWORD_IMPORTER}`,
-		`LOG_LEVEL=${process.env.LOG_LEVEL}`,
-		`DEBUG=${process.env.DEBUG}`
+		`LOG_LEVEL=${process.env.LOG_LEVEL}`
 	],
 	Healthcheck: {
 		Test: ['CMD-SHELL', 'node node_modules/@natlibfi/melinda-record-import-commons/dist/health-check.js'],
