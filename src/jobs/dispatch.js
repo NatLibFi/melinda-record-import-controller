@@ -29,19 +29,19 @@
 
 import moment from 'moment';
 import Docker from 'dockerode';
-import {Utils} from '@natlibfi/melinda-commons';
+import {createLogger} from '@natlibfi/melinda-backend-commons';
+import {clone} from '@natlibfi/melinda-commons';
 import {BLOB_STATE, createApiClient} from '@natlibfi/melinda-record-import-commons';
 import {logError, stopContainers, processBlobs} from './utils';
 import {
 	API_URL, API_USERNAME, API_PASSWORD,
 	CONTAINER_TEMPLATE_TRANSFORMER, CONTAINER_TEMPLATE_IMPORTER,
-	JOB_BLOBS_PENDING, JOB_BLOBS_TRANSFORMED, JOB_BLOBS_ABORTED,
+	JOB_BLOBS_PENDING, JOB_BLOBS_PROSESSING, JOB_BLOBS_TRANSFORMED, JOB_BLOBS_ABORTED,
 	CONTAINER_CONCURRENCY, IMPORTER_CONCURRENCY, API_CLIENT_USER_AGENT,
 	CONTAINER_NETWORKS, IMPORT_OFFLINE_PERIOD
 } from '../config';
 
 export default function (agenda) {
-	const {createLogger, clone} = Utils;
 	const logger = createLogger();
 	const client = createApiClient({
 		url: API_URL, username: API_USERNAME, password: API_PASSWORD,
@@ -49,6 +49,7 @@ export default function (agenda) {
 	});
 
 	agenda.define(JOB_BLOBS_PENDING, {concurrency: 1}, blobsPending);
+	agenda.define(JOB_BLOBS_PROSESSING, {concurrency: 1}, blobsProcessing);
 	agenda.define(JOB_BLOBS_TRANSFORMED, {concurrency: 1}, blobsTransformed);
 	agenda.define(JOB_BLOBS_ABORTED, {concurrency: 1}, blobsAborted);
 
@@ -115,7 +116,44 @@ export default function (agenda) {
 		}
 	}
 
+	async function blobsProcessing(_, done) {
+		logger.log('debug', 'Checking blobs in processing');
+
+		try {
+			await processBlobs({
+				client, processCallback,
+				query: {state: BLOB_STATE.PROCESSING},
+				messageCallback: count => `${count} blobs are in process to be imported`
+			});
+		} catch (err) {
+			logError(err);
+		} finally {
+			done();
+		}
+
+		async function processCallback(blobs) {
+			await doProcessing({blobs});
+
+			async function doProcessing({blobs}) {
+				const blob = blobs.shift();
+
+				if (blob) {
+					const {numberOfRecords, processedRecords, failedRecords, id} = blob;
+
+					if (numberOfRecords === processedRecords + failedRecords) {
+						logger.log('debug', `All records of blob ${id} have been processed. Setting state to PROCESSED`);
+						await client.updateState({id, state: BLOB_STATE.PROCESSED});
+						return doProcessing({blobs});
+					}
+
+					return doProcessing({blobs});
+				}
+			}
+		}
+	}
+
 	async function blobsTransformed({attrs: {data: blobsTryCount}}, done) {
+		logger.log('debug', 'Checking transformed blobs');
 		const profileCache = {};
 		const docker = new Docker();
 
@@ -146,13 +184,7 @@ export default function (agenda) {
 				const blob = blobs.shift();
 
 				if (blob) {
-					const {numberOfRecords, processedRecords, failedRecords, id, profile: profileId} = blob;
-
-					if (numberOfRecords === processedRecords + failedRecords) {
-						logger.log('debug', `All records of blob ${id} have been processed. Setting state to PROCESSED`);
-						await client.updateState({id, state: BLOB_STATE.PROCESSED});
-						return doProcessing({blobs, profilesExhausted});
-					}
+					const {id, profile: profileId} = blob;
 
 					if (profilesExhausted.includes(profileId) || justStateCheck) {
 						return doProcessing({blobs, profilesExhausted});
@@ -166,6 +198,7 @@ export default function (agenda) {
 							logger.log('debug', 'Not dispatching importers during offline period');
 						} else {
 							logger.log('debug', `Dispatching 1 import containers for blob ${id}`);
+							await client.updateState({id, state: BLOB_STATE.PROCESSING});
 							await dispatchImporter({id, docker, profile});
 							blobsTryCount[id] = blobsTryCount[id] ? blobsTryCount[id] + 1 : 1;
 
@@ -245,6 +278,7 @@ export default function (agenda) {
 				}
 
 				async function dispatchImporter({id, docker, profile}) {
+					logger.log('debug', 'Dispatching importer');
 					return Promise.all(map(async () => {
 						try {
 							await dispatchContainer({
@@ -302,6 +336,7 @@ export default function (agenda) {
 
 		manifest.Labels.blobId = blob;
 		manifest.Labels.profile = profile;
+		manifest.name = manifest.name + profile + '-' + blob;
 		manifest.Env.push(`PROFILE_ID=${profile}`);
 		manifest.Env.push(`BLOB_ID=${blob}`);
 

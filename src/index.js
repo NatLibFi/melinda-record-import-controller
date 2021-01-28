@@ -26,7 +26,7 @@
 *
 */
 
-import {Utils} from '@natlibfi/melinda-commons';
+import {createLogger, handleInterrupt} from '@natlibfi/melinda-backend-commons';
 import {MongoClient, MongoError} from 'mongodb';
 import Docker from 'dockerode';
 import Agenda from 'agenda';
@@ -40,10 +40,9 @@ import {
 	JOB_FREQ_CONTAINERS_HEALTH, JOB_FREQ_PRUNE_CONTAINERS, JOB_FREQ_UPDATE_IMAGES,
 	JOB_FREQ_BLOBS_METADATA_CLEANUP, JOB_FREQ_BLOBS_CONTENT_CLEANUP,
 	JOB_FREQ_BLOBS_MISSING_RECORDS, JOB_BLOBS_TRANSFORMATION_QUEUE_CLEANUP,
-	JOB_FREQ_BLOBS_TRANSFORMATION_QUEUE_CLEANUP
+	JOB_FREQ_BLOBS_TRANSFORMATION_QUEUE_CLEANUP, JOB_FREQ_BLOBS_PROCESSING_QUEUE_CLEANUP,
+	JOB_BLOBS_PROCESSING_QUEUE_CLEANUP, JOB_FREQ_BLOBS_PROCESSING, JOB_BLOBS_PROSESSING
 } from './config';
-
-const {createLogger, handleInterrupt} = Utils;
 
 run();
 
@@ -80,11 +79,13 @@ async function run() {
 		createImagesJob(agenda);
 
 		agenda.every(JOB_FREQ_BLOBS_TRANSFORMED, JOB_BLOBS_TRANSFORMED, {}, opts);
+		agenda.every(JOB_FREQ_BLOBS_PROCESSING, JOB_BLOBS_PROSESSING, undefined, opts);
 		agenda.every(JOB_FREQ_BLOBS_PENDING, JOB_BLOBS_PENDING, undefined, opts);
 		agenda.every(JOB_FREQ_BLOBS_ABORTED, JOB_BLOBS_ABORTED, undefined, opts);
 		agenda.every(JOB_FREQ_CONTAINERS_HEALTH, JOB_CONTAINERS_HEALTH, undefined, opts);
 		agenda.every(JOB_FREQ_UPDATE_IMAGES, JOB_UPDATE_IMAGES, undefined, opts);
 		agenda.every(JOB_FREQ_BLOBS_TRANSFORMATION_QUEUE_CLEANUP, JOB_BLOBS_TRANSFORMATION_QUEUE_CLEANUP, undefined, opts);
+		agenda.every(JOB_FREQ_BLOBS_PROCESSING_QUEUE_CLEANUP, JOB_BLOBS_PROCESSING_QUEUE_CLEANUP, undefined, opts);
 
 		if (JOB_FREQ_PRUNE_CONTAINERS === 'never') {
 			Logger.log('info', `Job ${JOB_PRUNE_CONTAINERS} is disabled`);

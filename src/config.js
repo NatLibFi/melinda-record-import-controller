@@ -27,9 +27,7 @@
 */
 
 import moment from 'moment';
-import {Utils} from '@natlibfi/melinda-commons';
-
-const {readEnvironmentVariable} = Utils;
+import {readEnvironmentVariable} from '@natlibfi/melinda-backend-commons';
 
 export const TZ = readEnvironmentVariable('TZ', {defaultValue: ''});
 
@@ -53,6 +51,7 @@ export const BLOBS_METADATA_TTL = readEnvironmentVariable('BLOB_METADATA_TTL');
 export const BLOBS_CONTENT_TTL = readEnvironmentVariable('BLOB_CONTENT_TTL');
 
 export const JOB_FREQ_BLOBS_PENDING = readEnvironmentVariable('JOB_FREQ_BLOBS_PENDING', {defaultValue: '10 seconds'});
+export const JOB_FREQ_BLOBS_PROCESSING = readEnvironmentVariable('JOB_FREQ_BLOBS_PROCESSING', {defaultValue: '10 seconds'});
 export const JOB_FREQ_BLOBS_TRANSFORMED = readEnvironmentVariable('JOB_FREQ_BLOBS_TRANSFORMED', {defaultValue: '10 seconds'});
 export const JOB_FREQ_BLOBS_ABORTED = readEnvironmentVariable('JOB_FREQ_BLOBS_ABORTED', {defaultValue: '10 seconds'});
 
@@ -60,6 +59,7 @@ export const JOB_FREQ_BLOBS_CONTENT_CLEANUP = readEnvironmentVariable('JOB_FREQ_
 export const JOB_FREQ_BLOBS_METADATA_CLEANUP = readEnvironmentVariable('JOB_FREQ_BLOBS_METADATA_CLEANUP', {defaultValue: '10 seconds'});
 export const JOB_FREQ_BLOBS_MISSING_RECORDS = readEnvironmentVariable('JOB_FREQ_BLOBS_MISSING_RECORDS', {defaultValue: '10 seconds'});
 export const JOB_FREQ_BLOBS_TRANSFORMATION_QUEUE_CLEANUP = readEnvironmentVariable('JOB_FREQ_BLOBS_BLOBS_TRANSFORMATION_QUEUE_CLEANUP', {defaultValue: '10 seconds'});
+export const JOB_FREQ_BLOBS_PROCESSING_QUEUE_CLEANUP = readEnvironmentVariable('JOB_FREQ_BLOBS_PROCESSING_QUEUE_CLEANUP', {defaultValue: '10 seconds'});
 
 export const JOB_FREQ_CONTAINERS_HEALTH = readEnvironmentVariable('JOB_FREQ_CONTAINERS_HEALTH', {defaultValue: '10 seconds'});
 export const JOB_FREQ_PRUNE_CONTAINERS = readEnvironmentVariable('JOB_FREQ_PRUNE_CONTAINERS', {defaultValue: '10 seconds'});
@@ -69,6 +69,7 @@ export const IMPORT_OFFLINE_PERIOD = readEnvironmentVariable('IMPORT_OFFLINE_PER
 
 // Default is 5 minutes
 export const STALE_TRANSFORMATION_PROGRESS_TTL = readEnvironmentVariable('STALE_TRANSFORMATION_PROGRESS_TTL', {defaultValue: '5 minutes'});
+export const STALE_PROCESSING_PROGRESS_TTL = readEnvironmentVariable('STALE_PROCESSING_PROGRESS_TTL', {defaultValue: '20 minutes'});
 
 export const MAX_BLOB_IMPORT_TRIES = readEnvironmentVariable('MAX_BLOB_IMPORT_TRIES', {defaultValue: 5, format: v => Number(v)});
 
@@ -79,6 +80,7 @@ export const SUPPORTED_DOCKER_API_VERSIONS = ['1.39', '1.40'];
 export const PROCESS_START_TIME = moment();
 
 export const JOB_BLOBS_PENDING = 'BLOBS_PENDING';
+export const JOB_BLOBS_PROSESSING = 'BLOBS_PROCESSING';
 export const JOB_BLOBS_TRANSFORMED = 'BLOBS_TRANSFORMED';
 export const JOB_BLOBS_ABORTED = 'BLOBS_ABORTED';
 
@@ -86,11 +88,13 @@ export const JOB_BLOBS_CONTENT_CLEANUP = 'BLOBS_CONTENT_CLEANUP';
 export const JOB_BLOBS_METADATA_CLEANUP = 'BLOBS_METADATA_CLEANUP';
 export const JOB_BLOBS_MISSING_RECORDS = 'BLOBS_MISSING_RECORDS';
 export const JOB_BLOBS_TRANSFORMATION_QUEUE_CLEANUP = 'BLOBS_TRANSFORMATION_QUEUE_CLEANUP';
+export const JOB_BLOBS_PROCESSING_QUEUE_CLEANUP = 'BLOBS_PROCESSING_QUEUE_CLEANUP';
 export const JOB_CONTAINERS_HEALTH = 'CONTAINERS_HEALTH';
 export const JOB_PRUNE_CONTAINERS = 'PRUNE_CONTAINERS';
 export const JOB_UPDATE_IMAGES = 'UPDATE_IMAGES';
 
 export const CONTAINER_TEMPLATE_TRANSFORMER = {
+	name: 'record-import-transformer-',
 	Binds: ['/etc/localtime:/etc/localtime:ro'],
 	Labels: {
 		'fi.nationallibrary.melinda.record-import.task': 'true',
@@ -102,7 +106,7 @@ export const CONTAINER_TEMPLATE_TRANSFORMER = {
 		`API_USERNAME=${API_USERNAME_TRANSFORMER}`,
 		`API_PASSWORD=${API_PASSWORD_TRANSFORMER}`,
 		'ABORT_ON_INVALID_RECORDS=false',
-		`DEBUG=${process.env.DEBUG}`
+		`LOG_LEVEL=${process.env.LOG_LEVEL}`
 	],
 	Healthcheck: {
 		Test: ['CMD-SHELL', 'node node_modules/@natlibfi/melinda-record-import-commons/dist/health-check.js'],
@@ -113,6 +117,7 @@ export const CONTAINER_TEMPLATE_TRANSFORMER = {
 };
 
 export const CONTAINER_TEMPLATE_IMPORTER = {
+	name: 'record-import-importer-',
 	Binds: ['/etc/localtime:/etc/localtime:ro'],
 	Labels: {
 		'fi.nationallibrary.melinda.record-import.task': 'true',
@@ -123,7 +128,7 @@ export const CONTAINER_TEMPLATE_IMPORTER = {
 		`API_URL=${API_URL}`,
 		`API_USERNAME=${API_USERNAME_IMPORTER}`,
 		`API_PASSWORD=${API_PASSWORD_IMPORTER}`,
-		`DEBUG=${process.env.DEBUG}`
+		`LOG_LEVEL=${process.env.LOG_LEVEL}`
 	],
 	Healthcheck: {
 		Test: ['CMD-SHELL', 'node node_modules/@natlibfi/melinda-record-import-commons/dist/health-check.js'],

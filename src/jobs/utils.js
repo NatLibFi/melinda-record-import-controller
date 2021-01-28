@@ -28,9 +28,7 @@
 */
 
 import Docker from 'dockerode';
-import {Utils} from '@natlibfi/melinda-commons';
-
-const {createLogger} = Utils;
+import {createLogger} from '@natlibfi/melinda-backend-commons';
 
 export async function stopContainers(filters) {
 	const logger = createLogger();
@@ -70,7 +68,6 @@ export async function processBlobs({client, query, processCallback, messageCallb
 			.on('error', reject)
 			.on('blobs', blobs => {
 				const filteredBlobs = blobs.filter(filter);
-
 				blobsTotal += filteredBlobs.length;
 				pendingProcessors.push(processCallback(filteredBlobs, pendingProcessors.length !== 0));
 			})
