@@ -24,6 +24,12 @@ steps:
   commands:
   - npm test
 
+- name: build
+  image: node:12
+  commands:
+    - npm run build
+    - NPM_CONFIG_IGNORE_SCRIPTS=true npm ci --production
+
 - name: static-security-scan
   image: quay.io/natlibfi/njsscan
   commands:
@@ -48,6 +54,6 @@ name: docker_password
 data: QBn+0EQUlji0ZzcsJ6idFhZjlkMPEmm28gjpQcIj04xuUvoytXVKZV9rRp3pj+ZB5+DpZGn6XM5zXLgUerBAD+f68LQZL2noxstVhCUEd5JXF9mYFYK5kXL24yI=
 ---
 kind: signature
-hmac: c9834fb05069c5f47ee353e3501a5cdfaf346512639a4f2703439fcfd3d2e6bc
+hmac: 63eb39148adbb6465c1c4c1755bd53dfaf32a5d5c31dc8ba1a2399778d4497aa
 
 ...
