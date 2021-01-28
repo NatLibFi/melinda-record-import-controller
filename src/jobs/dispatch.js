@@ -269,12 +269,12 @@ export default function (agenda) {
 						}
 
 						return {
-							dispatchCount: true,
-							totalLimitAfterDispatch: availTotal - 1
+							dispatch: true,
+							totalLimitAfterDispatch: availImporters - 1
 						};
 					}
 
-					return {dispatchCount: 0};
+					return {dispatch: false};
 				}
 
 				async function dispatchImporter({id, docker, profile}) {
