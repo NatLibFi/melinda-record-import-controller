@@ -176,11 +176,11 @@ export default function (agenda) {
 		async function processCallback(blobs) {
 			return Promise.all(blobs.map(async ({id}) => {
 				try {
-					if (method == 'deleteBlobContent'){
+					if (method === 'deleteBlobContent') {
 						await client.deleteBlobContent({id});
 					}
 
-					if (method === 'deleteBlob' || method === 'reQueueBlob' || method === 'abortBlob') {
+					if (method === 'deleteBlob' || method === 'reQueueBlob' || method === 'abortBlob') {
 						await channel.deleteQueue(id);
 					}
 
