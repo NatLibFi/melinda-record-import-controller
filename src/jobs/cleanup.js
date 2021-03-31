@@ -176,7 +176,11 @@ export default function (agenda) {
 		async function processCallback(blobs) {
 			return Promise.all(blobs.map(async ({id}) => {
 				try {
-					if (method === 'deleteBlob' || method === 'reQueueBlob' || method === 'abortBlob') {
+					if (method == 'deleteBlobContent'){
+						await client.deleteBlobContent({id});
+					}
+
+					if (method === 'deleteBlob' || method === 'reQueueBlob' || method === 'abortBlob') {
 						await channel.deleteQueue(id);
 					}
 
@@ -194,7 +198,6 @@ export default function (agenda) {
 						if (containers.length === 0) {
 							logger.log('warn', `Blob ${id} has no importer alive. Setting state to ABORTED`);
 							await client.setAborted({id});
-							// await client.deleteBlobContent({id});
 						}
 
 						return true;
