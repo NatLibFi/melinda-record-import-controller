@@ -32,7 +32,7 @@ import createDispatchJob from './dispatch';
 import createImagesJob from './images';
 
 export default (agenda, params) => {
-	createCleanupJob(agenda, params);
-	createDispatchJob(agenda, params);
-	createImagesJob(agenda, params);
+  createCleanupJob(agenda, params);
+  createDispatchJob(agenda, params);
+  createImagesJob(agenda, params);
 };

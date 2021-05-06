@@ -28,264 +28,262 @@
 
 import Docker from 'dockerode';
 import HttpStatus from 'http-status';
-import {Utils} from '@natlibfi/melinda-commons';
+import {createLogger, clone} from '@natlibfi/melinda-backend-commons';
 import {logError} from '../../utils';
 import {TRANSFORMER_TEMPLATE, IMPORTER_TEMPLATE, LABEL_IMPORT_TASK, LABEL_TASK, LABEL_TRANSFORM_TASK} from './constants';
 
 export default async ({
-	DOCKER_SUPPORTED_API_VERSIONS, DOCKER_CONTAINER_NETWORKS,
-	AMQP_URL, API_URL, DEBUG,
-	API_USERNAME_TRANSFORMER, API_PASSWORD_TRANSFORMER,
-	API_USERNAME_IMPORTER, API_PASSWORD_IMPORTER
+  DOCKER_SUPPORTED_API_VERSIONS, DOCKER_CONTAINER_NETWORKS,
+  AMQP_URL, API_URL, DEBUG,
+  API_USERNAME_TRANSFORMER, API_PASSWORD_TRANSFORMER,
+  API_USERNAME_IMPORTER, API_PASSWORD_IMPORTER
 }) => {
-	const {createLogger, clone} = Utils;
+  const logger = createLogger();
+  const docker = new Docker();
 
-	const logger = createLogger();
-	const docker = new Docker();
+  if (await isSupportedDockerVersion()) {
+    return {pruneTasks, updateImages, dispatchTask, listTasks, terminateTasks};
+  }
 
-	if (await isSupportedDockerVersion()) {
-		return {pruneTasks, updateImages, dispatchTask, listTasks, terminateTasks};
-	}
+  throw new Error('Docker API version is not supported');
 
-	throw new Error('Docker API version is not supported');
+  async function isSupportedDockerVersion() {
+    const {ApiVersion} = await docker.version();
+    return DOCKER_SUPPORTED_API_VERSIONS.includes(ApiVersion);
+  }
 
-	async function isSupportedDockerVersion() {
-		const {ApiVersion} = await docker.version();
-		return DOCKER_SUPPORTED_API_VERSIONS.includes(ApiVersion);
-	}
+  async function dispatchTask({type, blob, profile, options}) {
+    const manifest = {
+      Image: options.image,
+      ...clone(type === 'transform' ? TRANSFORMER_TEMPLATE : IMPORTER_TEMPLATE)
+    };
 
-	async function dispatchTask({type, blob, profile, options}) {
-		const manifest = {
-			Image: options.image,
-			...clone(type === 'transform' ? TRANSFORMER_TEMPLATE : IMPORTER_TEMPLATE)
-		};
+    manifest.Labels.blobId = blob; // eslint-disable-line functional/immutable-data
+    manifest.Labels.profile = profile; // eslint-disable-line functional/immutable-data
 
-		manifest.Labels.blobId = blob;
-		manifest.Labels.profile = profile;
+    manifest.Env = getEnv(options.env).concat([ // eslint-disable-line functional/immutable-data
+      `API_URL=${API_URL}`,
+      `AMQP_URL=${AMQP_URL}`,
+      `DEBUG=${DEBUG}`,
+      `API_USERNAME=${type === 'transform' ? API_USERNAME_TRANSFORMER : API_USERNAME_IMPORTER}`,
+      `API_PASSWORD=${type === 'transform' ? API_PASSWORD_TRANSFORMER : API_PASSWORD_IMPORTER}`,
+      `PROFILE_ID=${profile}`,
+      `BLOB_ID=${blob}`
+    ]);
 
-		manifest.Env = getEnv(options.env).concat([
-			`API_URL=${API_URL}`,
-			`AMQP_URL=${AMQP_URL}`,
-			`DEBUG=${DEBUG}`,
-			`API_USERNAME=${type === 'transform' ? API_USERNAME_TRANSFORMER : API_USERNAME_IMPORTER}`,
-			`API_PASSWORD=${type === 'transform' ? API_PASSWORD_TRANSFORMER : API_PASSWORD_IMPORTER}`,
-			`PROFILE_ID=${profile}`,
-			`BLOB_ID=${blob}`
-		]);
+    const cont = await docker.createContainer(manifest);
 
-		const cont = await docker.createContainer(manifest);
+    await attachToNetworks();
+    await cont.start();
 
-		await attachToNetworks();
-		await cont.start();
+    logger.log('debug', cont.id ? `ID of started ${type} container: ${cont.id}` : `Creation of ${type} container has failed`);
 
-		logger.log('debug', cont.id ? `ID of started ${type} container: ${cont.id}` : `Creation of ${type} container has failed`);
+    function getEnv(env = {}) {
+      return Object.keys(env).map(k => `${k}=${env[k]}`);
+    }
 
-		function getEnv(env = {}) {
-			return Object.keys(env).map(k => `${k}=${env[k]}`);
-		}
+    function attachToNetworks() {
+      return Promise.all(DOCKER_CONTAINER_NETWORKS.map(async networkName => {
+        const network = await docker.getNetwork(networkName);
 
-		async function attachToNetworks() {
-			return Promise.all(DOCKER_CONTAINER_NETWORKS.map(async networkName => {
-				const network = await docker.getNetwork(networkName);
+        return network.connect({
+          Container: cont.id
+        });
+      }));
+    }
+  }
 
-				return network.connect({
-					Container: cont.id
-				});
-			}));
-		}
-	}
+  async function terminateTasks({blob, unhealthy = false} = {}) {
+    const filters = genFilter();
+    const containersInfo = await docker.listContainers({filters});
 
-	async function terminateTasks({blob, unhealthy = false} = {}) {
-		const filters = genFilter();
-		const containersInfo = await docker.listContainers({filters});
+    if (containersInfo.length > 0) { // eslint-disable-line functional/no-conditional-statement
+      await Promise.all(containersInfo.map(async info => {
+        try {
+          logger.log('debug', `CONT:${info.Id}`);
+          const cont = await docker.getContainer(info.Id);
 
-		if (containersInfo.length > 0) {
-			await Promise.all(containersInfo.map(async info => {
-				try {
-					console.log(`CONT:${info.Id}`);
-					const cont = await docker.getContainer(info.Id);
+          if (info.State === 'running') { // eslint-disable-line functional/no-conditional-statement
+            logger.log('debug', 'Stopping container');
+            await cont.stop();
+          }
+        } catch (err) {
+          logError(err);
+        }
+      }));
+    }
 
-					if (info.State === 'running') {
-						logger.log('debug', 'Stopping container');
-						await cont.stop();
-					}
-				} catch (err) {
-					logError(err);
-				}
-			}));
-		}
+    function genFilter() {
+      const baseFilter = {
+        label: [LABEL_TASK]
+      };
 
-		function genFilter() {
-			const baseFilter = {
-				label: [LABEL_TASK]
-			};
+      return genHealth(genBlob(baseFilter));
 
-			return genHealth(genBlob(baseFilter));
+      function genBlob(filter) {
+        if (blob) {
+          return {
+            ...filter,
+            label: filter.label.concat(`blobId=${blob}`)
+          };
+        }
 
-			function genBlob(filter) {
-				if (blob) {
-					return {
-						...filter,
-						label: filter.label.concat(`blobId=${blob}`)
-					};
-				}
+        return filter;
+      }
 
-				return filter;
-			}
+      function genHealth(filter) {
+        if (unhealthy) {
+          return {...filter, health: ['unhealthy']};
+        }
 
-			function genHealth(filter) {
-				if (unhealthy) {
-					return {...filter, health: ['unhealthy']};
-				}
+        return filter;
+      }
+    }
+  }
 
-				return filter;
-			}
-		}
-	}
+  function listTasks({blob, profile, type} = {}) {
+    const filters = genFilter();
 
-	async function listTasks({blob, profile, type} = {}) {
-		const filters = genFilter();
+    return docker.listContainers({filters});
 
-		return docker.listContainers({filters});
+    function genFilter() {
+      const baseFilter = {
+        label: [LABEL_TASK]
+      };
 
-		function genFilter() {
-			const baseFilter = {
-				label: [LABEL_TASK]
-			};
+      return genType(genBlob(genProfile(baseFilter)));
 
-			return genType(genBlob(genProfile(baseFilter)));
+      function genType(filter) {
+        if (type) {
+          if (type === 'transform') {
+            return addLabel(filter, LABEL_TRANSFORM_TASK);
+          }
 
-			function genType(filter) {
-				if (type) {
-					if (type === 'transform') {
-						return addLabel(filter, LABEL_TRANSFORM_TASK);
-					}
+          if (type === 'import') {
+            return addLabel(filter, LABEL_IMPORT_TASK);
+          }
+        }
 
-					if (type === 'import') {
-						return addLabel(filter, LABEL_IMPORT_TASK);
-					}
-				}
+        return filter;
+      }
 
-				return filter;
-			}
+      function genBlob(filter) {
+        return addLabel(filter, blob ? `blobId=${blob}` : undefined);
+      }
 
-			function genBlob(filter) {
-				return addLabel(filter, blob ? `blobId=${blob}` : undefined);
-			}
+      function genProfile(filter) {
+        return addLabel(filter, profile ? `profile=${profile}` : undefined);
+      }
 
-			function genProfile(filter) {
-				return addLabel(filter, profile ? `profile=${profile}` : undefined);
-			}
+      function addLabel(filter, label) {
+        if (label) {
+          return {
+            ...filter,
+            label: filter.label.concat(label)
+          };
+        }
 
-			function addLabel(filter, label) {
-				if (label) {
-					return {
-						...filter,
-						label: filter.label.concat(label)
-					};
-				}
+        return filter;
+      }
+    }
+  }
 
-				return filter;
-			}
-		}
-	}
+  async function pruneTasks() {
+    try {
+      const result = await docker.pruneContainers({
+        all: true,
+        filters: {
+          label: [LABEL_TASK]
+        }
+      });
 
-	async function pruneTasks() {
-		try {
-			const result = await docker.pruneContainers({
-				all: true,
-				filters: {
-					label: [LABEL_TASK]
-				}
-			});
+      if (Array.isArray(typeof result.ContainersDeleted)) { // eslint-disable-line functional/no-conditional-statement
+        logger.log('debug', `Removed ${result.ContainersDeleted.length} inactive tasks`);
+      }
+    } catch (err) {
+      if (err.statusCode !== HttpStatus.CONFLICT) { // eslint-disable-line functional/no-conditional-statement
+        throw err;
+      }
+    }
+  }
 
-			if (Array.isArray(typeof result.ContainersDeleted)) {
-				logger.log('debug', `Removed ${result.ContainersDeleted.length} inactive tasks`);
-			}
-		} catch (err) {
-			if (err.statusCode !== HttpStatus.CONFLICT) {
-				throw err;
-			}
-		}
-	}
+  async function updateImages(refs) {
+    logger.log('debug', `Checking updates for ${refs.length} images  in the registry`);
 
-	async function updateImages(refs) {
-		logger.log('debug', `Checking updates for ${refs.length} images  in the registry`);
+    await update(refs);
 
-		await update(refs);
+    logger.log('debug', 'Done checking updates for images in the registry');
 
-		logger.log('debug', 'Done checking updates for images in the registry');
+    async function update(refs) {
+      const [ref, ...rest] = refs;
 
-		async function update(refs) {
-			const ref = refs[0];
+      if (ref) {
+        try {
+          const result = await getImage();
 
-			if (ref) {
-				try {
-					const result = await getImage();
+          if (result && result.image.RepoDigests && result.image.RepoDigests.length > 0 && result.pulled === false) { // eslint-disable-line functional/no-conditional-statement
+            await pullImage();
+          }
 
-					if (result && result.image.RepoDigests && result.image.RepoDigests.length > 0 && result.pulled === false) {
-						await pullImage();
-					}
+          return update(rest);
+        } catch (err) {
+          logError(err);
+        }
 
-					return update(refs.slice(1));
-				} catch (err) {
-					logError(err);
-				}
+        return update(rest);
+      }
 
-				return update(refs.slice(1));
-			}
+      async function getImage() {
+        try {
+          const image = docker.getImage(ref);
 
-			async function getImage() {
-				try {
-					const image = docker.getImage(ref);
+          return {
+            image: await image.inspect(),
+            pulled: false
+          };
+        } catch (err) {
+          if (err.statusCode === HttpStatus.NOT_FOUND) {
+            await pullImage(ref);
 
-					return {
-						image: await image.inspect(),
-						pulled: false
-					};
-				} catch (err) {
-					if (err.statusCode === HttpStatus.NOT_FOUND) {
-						await pullImage(ref);
+            const image = docker.getImage(ref);
 
-						const image = docker.getImage(ref);
+            return {
+              image: await image.inspect(),
+              pulled: true
+            };
+          }
+        }
+      }
 
-						return {
-							image: await image.inspect(),
-							pulled: true
-						};
-					}
-				}
-			}
+      async function pullImage() {
+        const stream = await docker.pull(ref);
 
-			async function pullImage() {
-				const stream = await docker.pull(ref);
+        return new Promise((resolve, reject) => {
+          let pullingImage; // eslint-disable-line functional/no-let
 
-				return new Promise((resolve, reject) => {
-					let pullingImage;
+          docker.modem.followProgress(stream, finishCallback, progressCallback);
 
-					docker.modem.followProgress(stream, finishCallback, progressCallback);
+          function finishCallback(err) {
+            if (err) {
+              return reject(err);
+            }
 
-					function finishCallback(err) {
-						if (err) {
-							return reject(err);
-						}
+            resolve();
+          }
 
-						resolve();
-					}
+          function progressCallback(event) {
+            if ((/^Status: Downloaded newer image/u).test(event.status)) { // eslint-disable-line functional/no-conditional-statement
+              logger.log('info', `Completed dowloading new version of ${ref}`);
+              return;
+            }
 
-					function progressCallback(event) {
-						if (/^Status: Downloaded newer image/.test(event.status)) {
-							logger.log('info', `Completed dowloading new version of ${ref}`);
-							return;
-						}
-
-						if (/^Pulling fs layer/.test(event.status) && !pullingImage) {
-							logger.log('info', `Image ${ref} has been updated in the registry or does not exist locally. Pulling from the registry`);
-							pullingImage = true;
-						}
-					}
-				});
-			}
-		}
-	}
+            if ((/^Pulling fs layer/u).test(event.status) && !pullingImage) { // eslint-disable-line functional/no-conditional-statement
+              logger.log('info', `Image ${ref} has been updated in the registry or does not exist locally. Pulling from the registry`);
+              pullingImage = true;
+            }
+          }
+        });
+      }
+    }
+  }
 };

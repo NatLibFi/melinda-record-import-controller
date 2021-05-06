@@ -27,9 +27,7 @@
 */
 
 import moment from 'moment';
-import {Utils} from '@natlibfi/melinda-commons';
-
-const {readEnvironmentVariable} = Utils;
+import {readEnvironmentVariable} from '@natlibfi/melinda-backend-commons';
 
 export const TZ = readEnvironmentVariable('TZ', {defaultValue: ''});
 
@@ -52,7 +50,7 @@ export const TASK_CONCURRENCY = readEnvironmentVariable('TASK_CONCURRENCY', {def
 export const IMPORTER_CONCURRENCY_BLOB = readEnvironmentVariable('IMPORTER_CONCURRENCY_BLOB', {defaultValue: 1, format: v => Number(v)});
 
 export const DOCKER_CONTAINER_NETWORKS = readEnvironmentVariable('DOCKER_CONTAINER_NETWORKS', {defaultValue: [], format: v => JSON.parse(v)});
-export const DOCKER_SUPPORTED_API_VERSIONS = ['1.39', '1.40'];
+export const DOCKER_SUPPORTED_API_VERSIONS = ['1.40', '1.41'];
 
 export const BLOBS_METADATA_TTL = readEnvironmentVariable('BLOB_METADATA_TTL');
 export const BLOBS_CONTENT_TTL = readEnvironmentVariable('BLOB_CONTENT_TTL');
@@ -65,6 +63,8 @@ export const JOB_FREQ_BLOBS_CONTENT_CLEANUP = readEnvironmentVariable('JOB_FREQ_
 export const JOB_FREQ_BLOBS_METADATA_CLEANUP = readEnvironmentVariable('JOB_FREQ_BLOBS_METADATA_CLEANUP', {defaultValue: '10 seconds'});
 export const JOB_FREQ_BLOBS_MISSING_RECORDS = readEnvironmentVariable('JOB_FREQ_BLOBS_MISSING_RECORDS', {defaultValue: '10 seconds'});
 export const JOB_FREQ_BLOBS_TRANSFORMATION_QUEUE_CLEANUP = readEnvironmentVariable('JOB_FREQ_BLOBS_BLOBS_TRANSFORMATION_QUEUE_CLEANUP', {defaultValue: '10 seconds'});
+export const JOB_FREQ_BLOBS_PROCESSING_QUEUE_CLEANUP = readEnvironmentVariable('JOB_FREQ_BLOBS_PROCESSING_QUEUE_CLEANUP', {defaultValue: '10 seconds'});
+export const JOB_FREQ_BLOBS_TRANSFORMATION_FAILED_CLEANUP = readEnvironmentVariable('BLOBS_TRANSFORMATION_FAILED_CLEANUP', {defaultValue: '10 seconds'});
 
 export const JOB_FREQ_TASKS_HEALTH = readEnvironmentVariable('JOB_FREQ_TASKS_HEALTH', {defaultValue: '10 seconds'});
 export const JOB_FREQ_PRUNE_TASKS = readEnvironmentVariable('JOB_FREQ_PRUNE_TASKS', {defaultValue: '10 seconds'});
@@ -74,6 +74,8 @@ export const IMPORT_OFFLINE_PERIOD = readEnvironmentVariable('IMPORT_OFFLINE_PER
 
 // Default is 5 minutes
 export const STALE_TRANSFORMATION_PROGRESS_TTL = readEnvironmentVariable('STALE_TRANSFORMATION_PROGRESS_TTL', {defaultValue: '5 minutes'});
+export const STALE_PROCESSING_PROGRESS_TTL = readEnvironmentVariable('STALE_PROCESSING_PROGRESS_TTL', {defaultValue: '20 minutes'});
+export const TRANSFORMATION_FAILED_TTL = readEnvironmentVariable('TRANSFORMATION_FAILED_TTL', {defaultValue: '12 hours'});
 
 export const MAX_BLOB_IMPORT_TRIES = readEnvironmentVariable('MAX_BLOB_IMPORT_TRIES', {defaultValue: 5, format: v => Number(v)});
 
@@ -82,6 +84,7 @@ export const API_CLIENT_USER_AGENT = readEnvironmentVariable('API_CLIENT_USER_AG
 export const PROCESS_START_TIME = moment();
 
 export const JOB_BLOBS_PENDING = 'BLOBS_PENDING';
+export const JOB_BLOBS_PROSESSING = 'BLOBS_PROCESSING';
 export const JOB_BLOBS_TRANSFORMED = 'BLOBS_TRANSFORMED';
 export const JOB_BLOBS_ABORTED = 'BLOBS_ABORTED';
 
@@ -89,6 +92,8 @@ export const JOB_BLOBS_CONTENT_CLEANUP = 'BLOBS_CONTENT_CLEANUP';
 export const JOB_BLOBS_METADATA_CLEANUP = 'BLOBS_METADATA_CLEANUP';
 export const JOB_BLOBS_MISSING_RECORDS = 'BLOBS_MISSING_RECORDS';
 export const JOB_BLOBS_TRANSFORMATION_QUEUE_CLEANUP = 'BLOBS_TRANSFORMATION_QUEUE_CLEANUP';
+export const JOB_BLOBS_TRANSFORMATION_FAILED_CLEANUP = 'BLOBS_TRANSFORMATION_FAILED_CLEANUP';
+export const JOB_BLOBS_PROCESSING_QUEUE_CLEANUP = 'BLOBS_PROCESSING_QUEUE_CLEANUP';
 export const JOB_TASKS_HEALTH = 'TASKS_HEALTH';
 export const JOB_PRUNE_TASKS = 'PRUNE_TASKS';
 export const JOB_UPDATE_IMAGES = 'UPDATE_IMAGES';

@@ -30,208 +30,227 @@ import moment from 'moment';
 import amqplib from 'amqplib';
 import HttpStatus from 'http-status';
 import humanInterval from 'human-interval';
-import {Utils} from '@natlibfi/melinda-commons';
+import {createLogger} from '@natlibfi/melinda-backend-commons';
 import {BLOB_STATE, createApiClient, ApiError} from '@natlibfi/melinda-record-import-commons';
 import {logError, processBlobs} from '../utils';
-import {
-
-} from '../config';
-
-const {createLogger} = Utils;
 
 export default function (agenda, {
-	terminateTasks, pruneTasks, listTasks,
-	API_URL, API_USERNAME, API_PASSWORD, API_CLIENT_USER_AGENT, AMQP_URL,
-	JOB_BLOBS_METADATA_CLEANUP, JOB_BLOBS_CONTENT_CLEANUP,
-	JOB_BLOBS_MISSING_RECORDS, JOB_BLOBS_TRANSFORMATION_QUEUE_CLEANUP,
-	JOB_PRUNE_TASKS, JOB_TASKS_HEALTH,
-	BLOBS_METADATA_TTL, BLOBS_CONTENT_TTL, STALE_TRANSFORMATION_PROGRESS_TTL
+  terminateTasks, pruneTasks, listTasks,
+  API_URL, API_USERNAME, API_PASSWORD, API_CLIENT_USER_AGENT, AMQP_URL,
+  JOB_BLOBS_METADATA_CLEANUP, JOB_BLOBS_CONTENT_CLEANUP,
+  JOB_BLOBS_MISSING_RECORDS, JOB_BLOBS_TRANSFORMATION_QUEUE_CLEANUP,
+  JOB_PRUNE_TASKS, JOB_TASKS_HEALTH,
+  BLOBS_METADATA_TTL, BLOBS_CONTENT_TTL, STALE_TRANSFORMATION_PROGRESS_TTL,
+  JOB_BLOBS_TRANSFORMATION_FAILED_CLEANUP, JOB_BLOBS_PROCESSING_QUEUE_CLEANUP,
+  TRANSFORMATION_FAILED_TTL, STALE_PROCESSING_PROGRESS_TTL
 }) {
-	const logger = createLogger();
-	const client = createApiClient({
-		url: API_URL, username: API_USERNAME, password: API_PASSWORD,
-		userAgent: API_CLIENT_USER_AGENT
-	});
+  const logger = createLogger();
+  const client = createApiClient({
+    url: API_URL, username: API_USERNAME, password: API_PASSWORD,
+    userAgent: API_CLIENT_USER_AGENT
+  });
 
-	agenda.define(JOB_BLOBS_METADATA_CLEANUP, {}, blobsMetadataCleanup);
-	agenda.define(JOB_BLOBS_CONTENT_CLEANUP, {}, blobsContentCleanup);
-	agenda.define(JOB_BLOBS_MISSING_RECORDS, {}, blobsMissingRecords);
-	agenda.define(JOB_PRUNE_TASKS, {}, pruneTasksJob);
-	agenda.define(JOB_TASKS_HEALTH, {}, tasksHealth);
-	agenda.define(JOB_BLOBS_TRANSFORMATION_QUEUE_CLEANUP, {}, blobsTransformationQueueCleanup);
+  agenda.define(JOB_BLOBS_METADATA_CLEANUP, {}, blobsMetadataCleanup);
+  agenda.define(JOB_BLOBS_CONTENT_CLEANUP, {}, blobsContentCleanup);
+  agenda.define(JOB_BLOBS_MISSING_RECORDS, {}, blobsMissingRecords);
+  agenda.define(JOB_PRUNE_TASKS, {}, pruneTasksJob);
+  agenda.define(JOB_TASKS_HEALTH, {}, tasksHealth);
+  agenda.define(JOB_BLOBS_TRANSFORMATION_QUEUE_CLEANUP, {}, blobsTransformationQueueCleanup);
+  agenda.define(JOB_BLOBS_TRANSFORMATION_FAILED_CLEANUP, {}, blobsTransformationFailedQueueCleanup);
+  agenda.define(JOB_BLOBS_PROCESSING_QUEUE_CLEANUP, {}, blobsProcessingQueueCleanup);
 
-	async function blobsMetadataCleanup(_, done) {
-		return blobsCleanup({
-			method: 'deleteBlob',
-			ttl: humanInterval(BLOBS_METADATA_TTL),
-			doneCallback: done,
-			messageCallback: count => `${count} blobs need to be deleted.`,
-			state: [BLOB_STATE.PROCESSED, BLOB_STATE.ABORTED]
-		});
-	}
+  function blobsMetadataCleanup(_, done) {
+    return blobsCleanup({
+      method: 'deleteBlob',
+      ttl: humanInterval(BLOBS_METADATA_TTL),
+      doneCallback: done,
+      messageCallback: count => `${count} blobs need to be deleted.`,
+      state: [BLOB_STATE.PROCESSED, BLOB_STATE.ABORTED]
+    });
+  }
 
-	async function blobsContentCleanup(_, done) {
-		return blobsCleanup({
-			method: 'deleteBlobContent',
-			ttl: humanInterval(BLOBS_CONTENT_TTL),
-			doneCallback: done,
-			messageCallback: count => `${count} blobs need to have their content deleted.`,
-			state: [BLOB_STATE.PROCESSED, BLOB_STATE.ABORTED]
-		});
-	}
+  function blobsContentCleanup(_, done) {
+    return blobsCleanup({
+      method: 'deleteBlobContent',
+      ttl: humanInterval(BLOBS_CONTENT_TTL),
+      doneCallback: done,
+      messageCallback: count => `${count} blobs need to have their content deleted.`,
+      state: [BLOB_STATE.PROCESSED, BLOB_STATE.ABORTED]
+    });
+  }
 
-	async function blobsTransformationQueueCleanup(_, done) {
-		return blobsCleanup({
-			method: 'requeueBlob',
-			ttl: humanInterval(STALE_TRANSFORMATION_PROGRESS_TTL),
-			doneCallback: done,
-			messageCallback: count => `${count} blobs need to be removed from the transformation queue`,
-			state: [BLOB_STATE.TRANSFORMATION_IN_PROGRESS]
-		});
-	}
+  function blobsTransformationQueueCleanup(_, done) {
+    return blobsCleanup({
+      method: 'requeueBlob',
+      ttl: humanInterval(STALE_TRANSFORMATION_PROGRESS_TTL),
+      doneCallback: done,
+      messageCallback: count => `${count} blobs need to be removed from the transformation queue`,
+      state: [BLOB_STATE.TRANSFORMATION_IN_PROGRESS]
+    });
+  }
 
-	async function blobsMissingRecords(_, done) {
-		let connection;
-		let channel;
+  function blobsTransformationFailedQueueCleanup(_, done) {
+    return blobsCleanup({
+      method: 'deleteBlob',
+      ttl: humanInterval(TRANSFORMATION_FAILED_TTL),
+      doneCallback: done,
+      messageCallback: count => `${count} blobs has failed transformation and will be removed`,
+      state: [BLOB_STATE.TRANSFORMATION_FAILED]
+    });
+  }
 
-		try {
-			connection = await amqplib.connect(AMQP_URL);
-			channel = await connection.createChannel();
+  function blobsProcessingQueueCleanup(_, done) {
+    return blobsCleanup({
+      method: 'abortBlob',
+      ttl: humanInterval(STALE_PROCESSING_PROGRESS_TTL),
+      doneCallback: done,
+      messageCallback: count => `${count} blobs need to abort for restart`,
+      state: [BLOB_STATE.PROCESSING]
+    });
+  }
 
-			await processBlobs({
-				client, processCallback,
-				query: {state: BLOB_STATE.TRANSFORMED}
-			});
-		} catch (err) {
-			logError(err);
-		} finally {
-			if (channel) {
-				await channel.close();
-			}
+  async function blobsMissingRecords(_, done) {
+    let connection; // eslint-disable-line functional/no-let
+    let channel; // eslint-disable-line functional/no-let
 
-			if (connection) {
-				await connection.close();
-			}
+    try {
+      connection = await amqplib.connect(AMQP_URL);
+      channel = await connection.createChannel();
 
-			done();
-		}
+      await processBlobs({
+        client, processCallback,
+        query: {state: BLOB_STATE.TRANSFORMED}
+      });
+    } catch (err) {
+      logError(err);
+    } finally {
+      if (channel) { // eslint-disable-line functional/no-conditional-statement
+        await channel.close();
+      }
 
-		async function processCallback(blobs) {
-			const blob = blobs.shift();
+      if (connection) { // eslint-disable-line functional/no-conditional-statement
+        await connection.close();
+      }
 
-			if (blob) {
-				const {id, processedRecords, failedRecords, numberOfRecords} = blob;
-				const processedCount = processedRecords + failedRecords;
-				const {messageCount} = await channel.assertQueue(id);
+      done();
+    }
 
-				if (processedCount < numberOfRecords && messageCount === 0) {
-					logger.log('warn', `Blob ${id} is missing records from the queue (processedCount: ${processedCount}, numberOfRecords: ${numberOfRecords}, messageCount: ${messageCount})`);
-				}
+    async function processCallback(blobs) {
+      const [blob, ...rest] = blobs;
 
-				return processCallback(blobs);
-			}
-		}
-	}
+      if (blob) {
+        const {id, processedRecords, failedRecords, numberOfRecords} = blob;
+        const processedCount = processedRecords + failedRecords;
+        const {messageCount} = await channel.assertQueue(id);
 
-	async function blobsCleanup({method, ttl, doneCallback, messageCallback, state}) {
-		let connection;
-		let channel;
+        if (processedCount < numberOfRecords && messageCount === 0) { // eslint-disable-line functional/no-conditional-statement
+          logger.log('warn', `Blob ${id} is missing records from the queue (processedCount: ${processedCount}, numberOfRecords: ${numberOfRecords}, messageCount: ${messageCount})`);
+        }
 
-		try {
-			connection = await amqplib.connect(AMQP_URL);
-			channel = await connection.createChannel();
+        return processCallback(rest);
+      }
+    }
+  }
 
-			await processBlobs({
-				client, processCallback, messageCallback,
-				query: {state},
-				filter: blob => {
-					const modificationTime = moment(blob.modificationTime);
-					if (method === 'requeueBlob') {
-						return moment().isAfter(modificationTime.add(ttl));
-					}
+  async function blobsCleanup({method, ttl, doneCallback, messageCallback, state}) {
+    let connection; // eslint-disable-line functional/no-let
+    let channel; // eslint-disable-line functional/no-let
 
-					return modificationTime.add(ttl).isBefore(moment());
-				}
-			});
-		} finally {
-			if (channel) {
-				await channel.close();
-			}
+    try {
+      connection = await amqplib.connect(AMQP_URL);
+      channel = await connection.createChannel();
 
-			if (connection) {
-				await connection.close();
-			}
+      await processBlobs({
+        client, processCallback, messageCallback,
+        query: {state},
+        filter: blob => {
+          const modificationTime = moment(blob.modificationTime);
+          if (method === 'requeueBlob') {
+            return moment().isAfter(modificationTime.add(ttl));
+          }
 
-			doneCallback();
-		}
+          return modificationTime.add(ttl).isBefore(moment());
+        }
+      });
+    } finally {
+      if (channel) { // eslint-disable-line functional/no-conditional-statement
+        await channel.close();
+      }
 
-		async function processCallback(blobs) {
-			return cleanup(blobs);
+      if (connection) { // eslint-disable-line functional/no-conditional-statement
+        await connection.close();
+      }
 
-			async function cleanup(blobs) {
-				const blob = blobs[0];
+      doneCallback();
+    }
 
-				if (blob) {
-					const {id} = blob;
+    function processCallback(blobs) {
+      return cleanup(blobs);
 
-					try {
-						if (method === 'deleteBlob' || method === 'reQueueBlob') {
-							await channel.deleteQueue(id);
-						}
+      async function cleanup(blobs) {
+        const [blob, ...rest] = blobs;
 
-						if (method === 'requeueBlob') {
-							const tasks = await listTasks({blob: id, type: 'transform'});
+        if (blob) { // eslint-disable-line functional/no-conditional-statement
+          const {id} = blob;
 
-							if (tasks.length === 0) {
-								logger.log('warn', `Blob ${id} has no transformer alive. Setting state to PENDING_TRANSFORMATION`);
-								await client.updateState({id, state: BLOB_STATE.PENDING_TRANSFORMATION});
-							}
+          try {
+            if (method === 'deleteBlob' || method === 'reQueueBlob') { // eslint-disable-line functional/no-conditional-statement
+              await channel.deleteQueue(id);
+            }
 
-							return cleanup(blobs.slice(1));
-						}
+            if (method === 'requeueBlob') {
+              const tasks = await listTasks({blob: id, type: 'transform'});
 
-						await client[method]({id});
+              if (tasks.length === 0) { // eslint-disable-line functional/no-conditional-statement
+                logger.log('warn', `Blob ${id} has no transformer alive. Setting state to PENDING_TRANSFORMATION`);
+                await client.updateState({id, state: BLOB_STATE.PENDING_TRANSFORMATION});
+              }
 
-						if (method !== 'requeueBlob') {
-							await terminateTasks({blob: id});
-						}
+              return cleanup(rest);
+            }
 
-						return cleanup(blobs.slice(1));
-					} catch (err) {
-						if (err instanceof ApiError && err.status === HttpStatus.BAD_REQUEST && method === 'deleteBlob') {
-							logger.log('warn', `Couldn't delete blob ${id} because content hasn't yet been deleted`);
-							return cleanup(blobs.slice(1));
-						}
+            await client[method]({id});
 
-						if (err instanceof ApiError && err.status === HttpStatus.NOT_FOUND) {
-							if (method === 'deleteBlob' || method === 'deleteBlobContent') {
-								logger.log('debug', `Blob ${id} or content already removed`);
-							}
+            if (method !== 'requeueBlob') { // eslint-disable-line functional/no-conditional-statement
+              await terminateTasks({blob: id});
+            }
 
-							return blobs.slice(1);
-						}
+            return cleanup(rest);
+          } catch (err) {
+            if (err instanceof ApiError && err.status === HttpStatus.BAD_REQUEST && method === 'deleteBlob') {
+              logger.log('warn', `Couldn't delete blob ${id} because content hasn't yet been deleted`);
+              return cleanup(rest);
+            }
 
-						logError(err);
-						return cleanup(blobs.slice(1));
-					}
-				}
-			}
-		}
-	}
+            if (err instanceof ApiError && err.status === HttpStatus.NOT_FOUND) {
+              if (method === 'deleteBlob' || method === 'deleteBlobContent') { // eslint-disable-line functional/no-conditional-statement
+                logger.log('debug', `Blob ${id} or content already removed`);
+              }
 
-	async function pruneTasksJob(_, done) {
-		try {
-			await pruneTasks();
-		} finally {
-			done();
-		}
-	}
+              return cleanup(rest);
+            }
 
-	async function tasksHealth(_, done) {
-		try {
-			await terminateTasks({unhealthy: true});
-		} finally {
-			done();
-		}
-	}
+            logError(err);
+            return cleanup(rest);
+          }
+        }
+      }
+    }
+  }
+
+  async function pruneTasksJob(_, done) {
+    try {
+      await pruneTasks();
+    } finally {
+      done();
+    }
+  }
+
+  async function tasksHealth(_, done) {
+    try {
+      await terminateTasks({unhealthy: true});
+    } finally {
+      done();
+    }
+  }
 }

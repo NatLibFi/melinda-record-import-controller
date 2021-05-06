@@ -31,41 +31,41 @@ import {createApiClient} from '@natlibfi/melinda-record-import-commons';
 import {logError} from '../utils';
 
 export default function (agenda, {
-	updateImages,
-	API_URL, API_USERNAME, API_PASSWORD, API_CLIENT_USER_AGENT, JOB_UPDATE_IMAGES
+  updateImages,
+  API_URL, API_USERNAME, API_PASSWORD, API_CLIENT_USER_AGENT, JOB_UPDATE_IMAGES
 }) {
-	const client = createApiClient({
-		url: API_URL, username: API_USERNAME, password: API_PASSWORD,
-		userAgent: API_CLIENT_USER_AGENT
-	});
+  const client = createApiClient({
+    url: API_URL, username: API_USERNAME, password: API_PASSWORD,
+    userAgent: API_CLIENT_USER_AGENT
+  });
 
-	agenda.define(JOB_UPDATE_IMAGES, {}, updateImagesJob);
+  agenda.define(JOB_UPDATE_IMAGES, {}, updateImagesJob);
 
-	async function updateImagesJob(_, done) {
-		try {
-			const refs = await getImageRefs();
-			await updateImages(refs);
-		} catch (err) {
-			logError(err);
-		} finally {
-			done();
-		}
+  async function updateImagesJob(_, done) {
+    try {
+      const refs = await getImageRefs();
+      await updateImages(refs);
+    } catch (err) {
+      logError(err);
+    } finally {
+      done();
+    }
 
-		async function getImageRefs() {
-			const results = await client.queryProfiles();
-			const profiles = await Promise.all(results.map(client.getProfile));
+    async function getImageRefs() {
+      const results = await client.queryProfiles();
+      const profiles = await Promise.all(results.map(client.getProfile));
 
-			return profiles.reduce((acc, profile) => {
-				if (!acc.includes(profile.import.image)) {
-					acc.push(profile.import.image);
-				}
+      return profiles.reduce((acc, profile) => {
+        if (!acc.includes(profile.import.image)) { // eslint-disable-line functional/no-conditional-statement
+          acc.push(profile.import.image); // eslint-disable-line functional/immutable-data
+        }
 
-				if (!acc.includes(profile.transformation.image)) {
-					acc.push(profile.transformation.image);
-				}
+        if (!acc.includes(profile.transformation.image)) { // eslint-disable-line functional/no-conditional-statement
+          acc.push(profile.transformation.image); // eslint-disable-line functional/immutable-data
+        }
 
-				return acc;
-			}, []);
-		}
-	}
+        return acc;
+      }, []);
+    }
+  }
 }

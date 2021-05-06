@@ -28,10 +28,10 @@
 
 import docker from './docker';
 
-export default async options => {
-	const {TASK_MODULE} = options;
+export default options => {
+  const {TASK_MODULE} = options;
 
-	if (TASK_MODULE === 'docker') {
-		return docker(options);
-	}
+  if (TASK_MODULE === 'docker') {
+    return docker(options);
+  }
 };
