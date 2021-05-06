@@ -225,6 +225,7 @@ export default function (agenda, {
             if (err instanceof ApiError && err.status === HttpStatus.NOT_FOUND) {
               if (method === 'deleteBlob' || method === 'deleteBlobContent') { // eslint-disable-line functional/no-conditional-statement
                 logger.log('debug', `Blob ${id} or content already removed`);
+                await client.deleteBlob({id});
               }
 
               return cleanup(rest);
