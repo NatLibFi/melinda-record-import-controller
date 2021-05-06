@@ -184,7 +184,7 @@ export default function (agenda) {
 						await channel.deleteQueue(id);
 
 						if (method === 'deleteBlob') {
-							await client.deleteBlob({id})
+							await client.deleteBlob({id});
 						}
 					}
 
