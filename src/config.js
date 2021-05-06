@@ -60,6 +60,7 @@ export const JOB_FREQ_BLOBS_METADATA_CLEANUP = readEnvironmentVariable('JOB_FREQ
 export const JOB_FREQ_BLOBS_MISSING_RECORDS = readEnvironmentVariable('JOB_FREQ_BLOBS_MISSING_RECORDS', {defaultValue: '10 seconds'});
 export const JOB_FREQ_BLOBS_TRANSFORMATION_QUEUE_CLEANUP = readEnvironmentVariable('JOB_FREQ_BLOBS_BLOBS_TRANSFORMATION_QUEUE_CLEANUP', {defaultValue: '10 seconds'});
 export const JOB_FREQ_BLOBS_PROCESSING_QUEUE_CLEANUP = readEnvironmentVariable('JOB_FREQ_BLOBS_PROCESSING_QUEUE_CLEANUP', {defaultValue: '10 seconds'});
+export const JOB_FREQ_BLOBS_TRANSFORMATION_FAILED_CLEANUP = readEnvironmentVariable('BLOBS_TRANSFORMATION_FAILED_CLEANUP', {defaultValue: '10 seconds'});
 
 export const JOB_FREQ_CONTAINERS_HEALTH = readEnvironmentVariable('JOB_FREQ_CONTAINERS_HEALTH', {defaultValue: '10 seconds'});
 export const JOB_FREQ_PRUNE_CONTAINERS = readEnvironmentVariable('JOB_FREQ_PRUNE_CONTAINERS', {defaultValue: '10 seconds'});
@@ -70,6 +71,8 @@ export const IMPORT_OFFLINE_PERIOD = readEnvironmentVariable('IMPORT_OFFLINE_PER
 // Default is 5 minutes
 export const STALE_TRANSFORMATION_PROGRESS_TTL = readEnvironmentVariable('STALE_TRANSFORMATION_PROGRESS_TTL', {defaultValue: '5 minutes'});
 export const STALE_PROCESSING_PROGRESS_TTL = readEnvironmentVariable('STALE_PROCESSING_PROGRESS_TTL', {defaultValue: '20 minutes'});
+
+export const TRANSFORMATION_FAILED_TTL = readEnvironmentVariable('TRANSFORMATION_FAILED_TTL', {defaultValue: '12 hours'});
 
 export const MAX_BLOB_IMPORT_TRIES = readEnvironmentVariable('MAX_BLOB_IMPORT_TRIES', {defaultValue: 5, format: v => Number(v)});
 
@@ -89,6 +92,7 @@ export const JOB_BLOBS_METADATA_CLEANUP = 'BLOBS_METADATA_CLEANUP';
 export const JOB_BLOBS_MISSING_RECORDS = 'BLOBS_MISSING_RECORDS';
 export const JOB_BLOBS_TRANSFORMATION_QUEUE_CLEANUP = 'BLOBS_TRANSFORMATION_QUEUE_CLEANUP';
 export const JOB_BLOBS_PROCESSING_QUEUE_CLEANUP = 'BLOBS_PROCESSING_QUEUE_CLEANUP';
+export const JOB_BLOBS_TRANSFORMATION_FAILED_CLEANUP = 'BLOBS_TRANSFORMATION_FAILED_CLEANUP';
 export const JOB_CONTAINERS_HEALTH = 'CONTAINERS_HEALTH';
 export const JOB_PRUNE_CONTAINERS = 'PRUNE_CONTAINERS';
 export const JOB_UPDATE_IMAGES = 'UPDATE_IMAGES';

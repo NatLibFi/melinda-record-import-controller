@@ -40,7 +40,7 @@ import {
 	JOB_BLOBS_MISSING_RECORDS, JOB_BLOBS_TRANSFORMATION_QUEUE_CLEANUP,
 	JOB_BLOBS_PROCESSING_QUEUE_CLEANUP, JOB_PRUNE_CONTAINERS, JOB_CONTAINERS_HEALTH,
 	BLOBS_METADATA_TTL, BLOBS_CONTENT_TTL, STALE_TRANSFORMATION_PROGRESS_TTL,
-	STALE_PROCESSING_PROGRESS_TTL
+	STALE_PROCESSING_PROGRESS_TTL, JOB_BLOBS_TRANSFORMATION_FAILED_CLEANUP, TRANSFORMATION_FAILED_TTL
 } from '../config';
 
 export default function (agenda) {
@@ -56,6 +56,7 @@ export default function (agenda) {
 	agenda.define(JOB_PRUNE_CONTAINERS, {concurrency: 1}, pruneContainers);
 	agenda.define(JOB_CONTAINERS_HEALTH, {concurrency: 1}, containersHealth);
 	agenda.define(JOB_BLOBS_TRANSFORMATION_QUEUE_CLEANUP, {concurrency: 1}, blobsTransformationQueueCleanup);
+	agenda.define(JOB_BLOBS_TRANSFORMATION_FAILED_CLEANUP, {concurrency: 1}, blobsTransformationFailedQueueCleanup);
 	agenda.define(JOB_BLOBS_PROCESSING_QUEUE_CLEANUP, {concurrency: 1}, blobsProcessingQueueCleanup);
 
 	async function blobsMetadataCleanup(_, done) {
@@ -85,6 +86,16 @@ export default function (agenda) {
 			doneCallback: done,
 			messageCallback: count => `${count} blobs need to have removed from transformation queue`,
 			state: [BLOB_STATE.TRANSFORMATION_IN_PROGRESS]
+		});
+	}
+
+	async function blobsTransformationFailedQueueCleanup(_, done) {
+		return blobsCleanup({
+			method: 'deleteBlob',
+			ttl: humanInterval(TRANSFORMATION_FAILED_TTL),
+			doneCallback: done,
+			messageCallback: count => `${count} blobs has failed transformation and will be removed`,
+			state: [BLOB_STATE.TRANSFORMATION_FAILED]
 		});
 	}
 
