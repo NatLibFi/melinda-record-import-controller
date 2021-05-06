@@ -182,6 +182,10 @@ export default function (agenda) {
 
 					if (method === 'deleteBlob' || method === 'reQueueBlob' || method === 'abortBlob') {
 						await channel.deleteQueue(id);
+
+						if (method === 'deleteBlob') {
+							await client.deleteBlob({id})
+						}
 					}
 
 					if (method === 'abortBlob') {
