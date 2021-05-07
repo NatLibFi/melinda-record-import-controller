@@ -28,7 +28,8 @@
 
 import Docker from 'dockerode';
 import HttpStatus from 'http-status';
-import {createLogger, clone} from '@natlibfi/melinda-backend-commons';
+import {clone} from '@natlibfi/melinda-commons';
+import {createLogger} from '@natlibfi/melinda-backend-commons';
 import {logError} from '../../utils';
 import {TRANSFORMER_TEMPLATE, IMPORTER_TEMPLATE, LABEL_IMPORT_TASK, LABEL_TASK, LABEL_TRANSFORM_TASK} from './constants';
 
