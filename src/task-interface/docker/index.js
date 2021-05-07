@@ -60,7 +60,7 @@ export default async ({
 
     manifest.Labels.blobId = blob; // eslint-disable-line functional/immutable-data
     manifest.Labels.profile = profile; // eslint-disable-line functional/immutable-data
-    manifest.name = manifest.name + profile + '-' + blob; // eslint-disable-line functional/immutable-data
+    manifest.name = `${manifest.name}${profile}-${blob}`; // eslint-disable-line functional/immutable-data
 
     manifest.Env = getEnv(options.env).concat([ // eslint-disable-line functional/immutable-data
       `API_URL=${API_URL}`,
