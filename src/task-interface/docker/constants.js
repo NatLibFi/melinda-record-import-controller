@@ -31,6 +31,7 @@ export const LABEL_TRANSFORM_TASK = 'fi.nationallibrary.melinda.record-import.co
 export const LABEL_IMPORT_TASK = 'fi.nationallibrary.melinda.record-import.container-type=import-task';
 
 export const TRANSFORMER_TEMPLATE = {
+  name: 'record-import-transformer-',
   Binds: ['/etc/localtime:/etc/localtime:ro'],
   Labels: {
     'fi.nationallibrary.melinda.record-import.task': 'true',
@@ -46,6 +47,7 @@ export const TRANSFORMER_TEMPLATE = {
 };
 
 export const IMPORTER_TEMPLATE = {
+  name: 'record-import-importer-',
   Binds: ['/etc/localtime:/etc/localtime:ro'],
   Labels: {
     'fi.nationallibrary.melinda.record-import.task': 'true',
