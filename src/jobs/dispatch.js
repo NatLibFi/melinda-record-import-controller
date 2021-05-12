@@ -68,6 +68,8 @@ export default function (agenda, {
       return dispatch(blobs);
 
       async function dispatch(blobs) {
+        logger.log('verbose', 'Dispatch');
+
         const [blob, ...rest] = blobs;
 
         if (blob) {
@@ -242,6 +244,7 @@ export default function (agenda, {
         }
 
         async function getDispatchCount(id) {
+          logger.log('info', 'Get dispatch count');
           const totalCount = (await listTasks()).length;
           const importerCount = (await listTasks({type: 'import'})).length;
           const blobImporterCount = (await listTasks({type: 'import', profile: id})).length;

@@ -199,7 +199,7 @@ export default async ({
         }
       });
 
-      if (Array.isArray(typeof result.ContainersDeleted)) { // eslint-disable-line functional/no-conditional-statement
+      if (result.ContainersDeleted !== null) { // eslint-disable-line functional/no-conditional-statement
         logger.log('debug', `Removed ${result.ContainersDeleted.length} inactive tasks`);
       }
     } catch (err) {
