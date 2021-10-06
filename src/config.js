@@ -75,7 +75,7 @@ export const MAX_BLOB_IMPORT_TRIES = readEnvironmentVariable('MAX_BLOB_IMPORT_TR
 
 export const API_CLIENT_USER_AGENT = readEnvironmentVariable('API_CLIENT_USER_AGENT', {defaultValue: '_RECORD-IMPORT-CONTROLLER'});
 
-export const SUPPORTED_DOCKER_API_VERSIONS = ['1.39', '1.40'];
+export const SUPPORTED_DOCKER_API_VERSIONS = readEnvironmentVariable('SUPPORTED_DOCKER_API_VERSIONS', {defaultValue: ['1.39', '1.40'], format: v => JSON.parse(v)});
 
 export const PROCESS_START_TIME = moment();
 
