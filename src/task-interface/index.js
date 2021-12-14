@@ -1,9 +1,8 @@
 /**
-
 *
 * @licstart  The following is the entire license notice for the JavaScript code in this file.
 *
-* Controller microservice of Melinda record batch import system
+* API microservice of Melinda record batch import system
 *
 * Copyright (C) 2018-2021 University Of Helsinki (The National Library Of Finland)
 *
@@ -27,12 +26,17 @@
 *
 */
 
-import createCleanupJob from './cleanup';
-import createDispatchJob from './dispatch';
-import createImagesJob from './images';
+import docker from './docker';
+import kubernets from './kubernets';
 
-export default (agenda, params) => {
-  createCleanupJob(agenda, params);
-  createDispatchJob(agenda, params);
-  createImagesJob(agenda, params);
+export default options => {
+  const {TASK_MODULE} = options;
+
+  if (TASK_MODULE === 'docker') {
+    return docker(options);
+  }
+
+  if (TASK_MODULE === 'kubernets') {
+    return kubernets(options);
+  }
 };

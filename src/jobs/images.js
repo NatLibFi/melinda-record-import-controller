@@ -5,7 +5,7 @@
 *
 * Controller microservice of Melinda record batch import system
 *
-* Copyright (C) 2018-2019 University Of Helsinki (The National Library Of Finland)
+* Copyright (C) 2018-2021 University Of Helsinki (The National Library Of Finland)
 *
 * This file is part of melinda-record-import-controller
 *
@@ -27,101 +27,45 @@
 *
 */
 
-import Docker from 'dockerode';
-import {createLogger} from '@natlibfi/melinda-backend-commons';
 import {createApiClient} from '@natlibfi/melinda-record-import-commons';
-import {logError} from './utils';
-import {
-	API_URL, API_USERNAME, API_PASSWORD,
-	API_CLIENT_USER_AGENT, JOB_UPDATE_IMAGES
-} from '../config';
+import {logError} from '../utils';
 
-export default function (agenda) {
-	const logger = createLogger();
-	const client = createApiClient({
-		url: API_URL, username: API_USERNAME, password: API_PASSWORD,
-		userAgent: API_CLIENT_USER_AGENT
-	});
+export default function (agenda, {
+  updateImages,
+  API_URL, API_USERNAME, API_PASSWORD, API_CLIENT_USER_AGENT, JOB_UPDATE_IMAGES
+}) {
+  const client = createApiClient({
+    url: API_URL, username: API_USERNAME, password: API_PASSWORD,
+    userAgent: API_CLIENT_USER_AGENT
+  });
 
-	agenda.define(JOB_UPDATE_IMAGES, {concurrency: 1}, updateImages);
+  agenda.define(JOB_UPDATE_IMAGES, {}, updateImagesJob);
 
-	async function updateImages(_, done) {
-		const docker = new Docker();
+  async function updateImagesJob(_, done) {
+    try {
+      const refs = await getImageRefs();
+      await updateImages(refs);
+    } catch (err) {
+      logError(err);
+    } finally {
+      done();
+    }
 
-		try {
-			const refs = await getImageRefs();
-			const images404 = [];
+    async function getImageRefs() {
+      const results = await client.queryProfiles();
+      const profiles = await Promise.all(results.map(client.getProfile));
 
-			logger.log('debug', `Checking updates for ${refs.length} images  in the registry`);
+      return profiles.reduce((acc, profile) => {
+        if (!acc.includes(profile.import.image)) { // eslint-disable-line functional/no-conditional-statement
+          acc.push(profile.import.image); // eslint-disable-line functional/immutable-data
+        }
 
-			await Promise.all(refs.map(async ref => {
-				try {
-					const image = docker.getImage(ref);
-					const {RepoDigests} = await image.inspect();
-					if (RepoDigests && RepoDigests.length > 0) {
-						await updateImage(ref);
-					}
-				} catch (err) {
-					if (err.statusCode === 404) {
-						if (images404.includes(ref) === false) {
-							logger.log('debug', `Did not found image ${ref} locally, trying to pull it from remote`);
-							await updateImage(ref);
-							images404.push(ref);
-						} else {
-							logError(err);
-							process.exit(1);
-						}
-					}
-				}
-			}));
-			logger.log('debug', 'Done checking updates for images in the registry');
-		} catch (err) {
-			logError(err);
-		} finally {
-			done();
-		}
+        if (!acc.includes(profile.transformation.image)) { // eslint-disable-line functional/no-conditional-statement
+          acc.push(profile.transformation.image); // eslint-disable-line functional/immutable-data
+        }
 
-		async function getImageRefs() {
-			const results = await client.queryProfiles();
-			const profiles = await Promise.all(results.map(client.getProfile));
-
-			return profiles.reduce((acc, profile) => {
-				if (!acc.includes(profile.import.image)) {
-					acc.push(profile.import.image);
-				}
-
-				if (!acc.includes(profile.transformation.image)) {
-					acc.push(profile.transformation.image);
-				}
-
-				return acc;
-			}, []);
-		}
-
-		async function updateImage(image) {
-			const stream = await docker.pull(image);
-
-			return new Promise((resolve, reject) => {
-				let pullingImage;
-				docker.modem.followProgress(stream, finishCallback, progressCallback);
-
-				function finishCallback(err) {
-					if (err) {
-						reject(err);
-					} else {
-						resolve();
-					}
-				}
-
-				function progressCallback(event) {
-					if (/^Status: Downloaded newer image/.test(event.status)) {
-						logger.log('info', `Completed dowloading new version of ${image}`);
-					} else if (/^Pulling fs layer/.test(event.status) && !pullingImage) {
-						logger.log('info', `Image ${image} has been updated in the registry. Pulling new version`);
-						pullingImage = true;
-					}
-				}
-			});
-		}
-	}
+        return acc;
+      }, []);
+    }
+  }
 }
