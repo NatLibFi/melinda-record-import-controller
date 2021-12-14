@@ -1,5 +1,4 @@
 ---
-
 kind: pipeline
 name: default
 steps:
@@ -8,27 +7,31 @@ steps:
   image: quay.io/natlibfi/drone-gen-tags
 
 - name: audit
-  image: node:12
+  image: node:14
   commands:
   - npm audit --package-lock-only --audit-level=moderate --production
 
 - name: install
-  image: node:12
-  commands:
-  - npm ci
+  image: node:14
   environment:
     NPM_CONFIG_IGNORE_SCRIPTS: true
+  commands:
+  - npm install -g npm@latest
+  - npm ci
 
 - name: test
-  image: node:12
+  image: node:14
   commands:
   - npm test
 
 - name: build
-  image: node:12
+  image: node:14
+  environment:
+    NPM_CONFIG_IGNORE_SCRIPTS: true
   commands:
-    - npm run build
-    - NPM_CONFIG_IGNORE_SCRIPTS=true npm ci --production
+  - npm install -g npm@latest
+  - npm run build
+  - npm ci --production
 
 - name: static-security-scan
   image: quay.io/natlibfi/njsscan
@@ -54,6 +57,6 @@ name: docker_password
 data: QBn+0EQUlji0ZzcsJ6idFhZjlkMPEmm28gjpQcIj04xuUvoytXVKZV9rRp3pj+ZB5+DpZGn6XM5zXLgUerBAD+f68LQZL2noxstVhCUEd5JXF9mYFYK5kXL24yI=
 ---
 kind: signature
-hmac: 63eb39148adbb6465c1c4c1755bd53dfaf32a5d5c31dc8ba1a2399778d4497aa
+hmac: 610b2b92e5199eadbf4f22ad19c292c07c0a33082fdca1759fdcb8dfa8dfc66e
 
 ...
