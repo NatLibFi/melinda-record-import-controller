@@ -164,6 +164,10 @@ export default function (agenda, {
         return processCallback(rest);
       }
 
+      if (messageCount + processedCount === numberOfRecords) {
+        return processCallback(rest);
+      }
+
       logger.warn(`Blob ${id} is missing records from the queue (processedCount: ${processedCount}, numberOfRecords: ${numberOfRecords}, messageCount: ${messageCount})`);
       return processCallback(rest);
     }
