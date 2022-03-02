@@ -27,6 +27,10 @@
 */
 
 import docker from './docker';
+<<<<<<< HEAD
+=======
+import kubernets from './kubernets';
+>>>>>>> origin/next
 
 export default options => {
   const {TASK_MODULE} = options;
@@ -34,4 +38,11 @@ export default options => {
   if (TASK_MODULE === 'docker') {
     return docker(options);
   }
+<<<<<<< HEAD
+=======
+
+  if (TASK_MODULE === 'kubernets') {
+    return kubernets(options);
+  }
+>>>>>>> origin/next
 };
