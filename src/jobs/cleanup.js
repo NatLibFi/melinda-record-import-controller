@@ -159,13 +159,13 @@ export default function (agenda, {
         return processCallback(rest);
       }
 
-      if (messageCount === 0 && processedCount > 0 && (processedCount + queuedRecords) < numberOfRecords) {
+      if (messageCount === 0 && processedCount > 0 && processedCount + queuedRecords < numberOfRecords) {
         logger.warn(`Blob ${id} has lost the queue, setting state to ABORTED (processedCount: ${processedCount}, messageCount: ${messageCount})`);
         await client.setAborted({id});
         return processCallback(rest);
       }
 
-      if ((messageCount + processedCount + queuedRecords) === numberOfRecords) {
+      if (messageCount + processedCount + queuedRecords === numberOfRecords) {
         return processCallback(rest);
       }
 
