@@ -31,7 +31,6 @@ import {MongoClient, MongoError} from 'mongodb';
 
 import Agenda from 'agenda';
 import createJobs from './jobs';
-import createTaskInterface from './task-interface';
 import * as config from './config';
 
 run();
@@ -41,9 +40,9 @@ async function run() {
     MONGO_URI, TZ,
     JOB_BLOBS_PENDING, JOB_BLOBS_ABORTED, JOB_BLOBS_PROCESSING,
     JOB_BLOBS_METADATA_CLEANUP, JOB_BLOBS_CONTENT_CLEANUP, JOB_BLOBS_MISSING_RECORDS,
-    JOB_TASKS_HEALTH, JOB_PRUNE_TASKS, JOB_UPDATE_IMAGES,
+    JOB_TASKS_HEALTH, JOB_PRUNE_TASKS,
     JOB_FREQ_BLOBS_PENDING, JOB_FREQ_BLOBS_ABORTED, JOB_FREQ_BLOBS_PROCESSING,
-    JOB_FREQ_TASKS_HEALTH, JOB_FREQ_PRUNE_TASKS, JOB_FREQ_UPDATE_IMAGES,
+    JOB_FREQ_TASKS_HEALTH, JOB_FREQ_PRUNE_TASKS,
     JOB_FREQ_BLOBS_METADATA_CLEANUP, JOB_FREQ_BLOBS_CONTENT_CLEANUP,
     JOB_FREQ_BLOBS_MISSING_RECORDS, JOB_BLOBS_TRANSFORMATION_QUEUE_CLEANUP,
     JOB_FREQ_BLOBS_TRANSFORMATION_QUEUE_CLEANUP, JOB_FREQ_BLOBS_PROCESSING_QUEUE_CLEANUP,
@@ -53,7 +52,6 @@ async function run() {
 
   const logger = createLogger();
   const Mongo = await MongoClient.connect(MONGO_URI, {useNewUrlParser: true});
-  const taskInterface = await createTaskInterface(config);
 
   Mongo.on('error', err => {
     logger.error('Error stack' in err ? err.stack : err);
@@ -78,13 +76,12 @@ async function run() {
   agenda.on('ready', () => {
     const opts = TZ ? {timezone: TZ} : {};
 
-    createJobs(agenda, {...taskInterface, ...config});
+    createJobs(agenda, config);
 
     agenda.every(JOB_FREQ_BLOBS_PENDING, JOB_BLOBS_PENDING, undefined, opts);
     agenda.every(JOB_FREQ_BLOBS_PROCESSING, JOB_BLOBS_PROCESSING, {}, opts);
     agenda.every(JOB_FREQ_BLOBS_ABORTED, JOB_BLOBS_ABORTED, undefined, opts);
     agenda.every(JOB_FREQ_TASKS_HEALTH, JOB_TASKS_HEALTH, undefined, opts);
-    agenda.every(JOB_FREQ_UPDATE_IMAGES, JOB_UPDATE_IMAGES, undefined, opts);
     agenda.every(JOB_FREQ_BLOBS_TRANSFORMATION_QUEUE_CLEANUP, JOB_BLOBS_TRANSFORMATION_QUEUE_CLEANUP, undefined, opts);
     agenda.every(JOB_FREQ_BLOBS_PROCESSING_QUEUE_CLEANUP, JOB_BLOBS_PROCESSING_QUEUE_CLEANUP, undefined, opts);
     agenda.every(JOB_FREQ_BLOBS_TRANSFORMATION_FAILED_CLEANUP, JOB_BLOBS_TRANSFORMATION_FAILED_CLEANUP, undefined, opts);

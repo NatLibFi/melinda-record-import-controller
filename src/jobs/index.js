@@ -28,11 +28,9 @@
 */
 
 import createCleanupJob from './cleanup';
-import createDispatchJob from './dispatch';
-import createImagesJob from './images';
+import createStatusCheckJob from './statusCheck';
 
 export default (agenda, params) => {
   createCleanupJob(agenda, params);
-  createDispatchJob(agenda, params);
-  createImagesJob(agenda, params);
+  createStatusCheckJob(agenda, params);
 };

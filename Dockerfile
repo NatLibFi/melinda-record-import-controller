@@ -1,10 +1,8 @@
 FROM node:14-alpine
-ENTRYPOINT ["/entrypoint.sh"]
 CMD ["/usr/local/bin/node", "index.js"]
 WORKDIR /home/node
 
 COPY --chown=node:node . build
-COPY entrypoint.sh /
 
 RUN apk add -U --no-cache --virtual .build-deps git \
   && apk add --no-cache sudo tzdata \

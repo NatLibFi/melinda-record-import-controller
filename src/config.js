@@ -31,26 +31,12 @@ import {readEnvironmentVariable} from '@natlibfi/melinda-backend-commons';
 
 export const TZ = readEnvironmentVariable('TZ', {defaultValue: ''});
 
-export const TASK_MODULE = readEnvironmentVariable('TASK_MODULE');
-
 export const API_URL = readEnvironmentVariable('API_URL');
 export const API_USERNAME = readEnvironmentVariable('API_USERNAME');
 export const API_PASSWORD = readEnvironmentVariable('API_PASSWORD');
-export const API_USERNAME_IMPORTER = readEnvironmentVariable('API_USERNAME_IMPORTER');
-export const API_PASSWORD_IMPORTER = readEnvironmentVariable('API_PASSWORD_IMPORTER');
-export const API_USERNAME_TRANSFORMER = readEnvironmentVariable('API_USERNAME_TRANSFORMER');
-export const API_PASSWORD_TRANSFORMER = readEnvironmentVariable('API_PASSWORD_TRANSFORMER');
 
 export const MONGO_URI = readEnvironmentVariable('MONGO_URI', {defaultValue: 'mongodb://127.0.0.1/db'});
 export const AMQP_URL = readEnvironmentVariable('AMQP_URL', {defaultValue: 'amqp://127.0.0.1:5672'});
-
-export const IMPORTER_CONCURRENCY = readEnvironmentVariable('IMPORTER_CONCURRENCY', {defaultValue: 1, format: v => Number(v)});
-export const TRANSFORMER_CONCURRENCY = readEnvironmentVariable('TRANSFORMER_CONCURRENCY', {defaultValue: 1, format: v => Number(v)});
-export const TASK_CONCURRENCY = readEnvironmentVariable('TASK_CONCURRENCY', {defaultValue: 5, format: v => Number(v)});
-export const IMPORTER_CONCURRENCY_BLOB = readEnvironmentVariable('IMPORTER_CONCURRENCY_BLOB', {defaultValue: 1, format: v => Number(v)});
-
-export const DOCKER_CONTAINER_NETWORKS = readEnvironmentVariable('DOCKER_CONTAINER_NETWORKS', {defaultValue: [], format: v => JSON.parse(v)});
-export const DOCKER_SUPPORTED_API_VERSIONS = readEnvironmentVariable('DOCKER_SUPPORTED_API_VERSIONS', {defaultValue: ['1.40', '1.41'], format: v => JSON.parse(v)});
 
 export const BLOBS_METADATA_TTL = readEnvironmentVariable('BLOB_METADATA_TTL');
 export const BLOBS_CONTENT_TTL = readEnvironmentVariable('BLOB_CONTENT_TTL');

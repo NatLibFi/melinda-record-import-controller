@@ -31,7 +31,8 @@ import amqplib from 'amqplib';
 import HttpStatus from 'http-status';
 import humanInterval from 'human-interval';
 import {createLogger} from '@natlibfi/melinda-backend-commons';
-import {BLOB_STATE, createApiClient, ApiError} from '@natlibfi/melinda-record-import-commons';
+import {Error as ApiError} from '@natlibfi/melinda-commons';
+import {BLOB_STATE, createApiClient} from '@natlibfi/melinda-record-import-commons';
 import {logError, processBlobs} from '../utils';
 
 export default function (agenda, {
@@ -46,8 +47,8 @@ export default function (agenda, {
 }) {
   const logger = createLogger();
   const client = createApiClient({
-    url: API_URL, username: API_USERNAME, password: API_PASSWORD,
-    userAgent: API_CLIENT_USER_AGENT
+    recordImportApiUrl: API_URL, recordImportApiUsername: API_USERNAME,
+    recordImportApiPassword: API_PASSWORD, userAgent: API_CLIENT_USER_AGENT
   });
 
   agenda.define(JOB_BLOBS_METADATA_CLEANUP, {}, blobsMetadataCleanup);
@@ -148,27 +149,27 @@ export default function (agenda, {
         return;
       }
 
-      const {id, processedRecords, failedRecords, numberOfRecords} = blob;
+      const {id, processedRecords, failedRecords, numberOfRecords, queuedRecords} = blob;
       const processedCount = processedRecords + failedRecords;
       const {messageCount} = await channel.assertQueue(id);
 
-      if (messageCount === 0 && processedCount === 0) {
+      if (messageCount === 0 && processedCount === 0 && queuedRecords === 0) {
         logger.warn(`Blob ${id} has lost the queue, setting state to PENDING_TRANSFORMATION (processedRecords: ${processedRecords}, messageCount: ${messageCount})`);
         await client.updateState({id, state: BLOB_STATE.PENDING_TRANSFORMATION});
         return processCallback(rest);
       }
 
-      if (messageCount === 0 && processedCount > 0 && processedCount < numberOfRecords) {
+      if (messageCount === 0 && processedCount > 0 && (processedCount + queuedRecords) < numberOfRecords) {
         logger.warn(`Blob ${id} has lost the queue, setting state to ABORTED (processedCount: ${processedCount}, messageCount: ${messageCount})`);
         await client.setAborted({id});
         return processCallback(rest);
       }
 
-      if (messageCount + processedCount === numberOfRecords) {
+      if ((messageCount + processedCount + queuedRecords) === numberOfRecords) {
         return processCallback(rest);
       }
 
-      logger.warn(`Blob ${id} is missing records from the queue (processedCount: ${processedCount}, numberOfRecords: ${numberOfRecords}, messageCount: ${messageCount})`);
+      logger.warn(`Blob ${id} is missing records from the queue (processedCount: ${processedCount}, numberOfRecords: ${numberOfRecords}, messageCount: ${messageCount}, queuedRecords: ${queuedRecords})`);
       return processCallback(rest);
     }
   }
