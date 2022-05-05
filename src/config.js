@@ -53,14 +53,12 @@ export const JOB_FREQ_BLOBS_TRANSFORMATION_QUEUE_CLEANUP = readEnvironmentVariab
 export const JOB_FREQ_BLOBS_PROCESSING_QUEUE_CLEANUP = readEnvironmentVariable('JOB_FREQ_BLOBS_PROCESSING_QUEUE_CLEANUP', {defaultValue: '10 seconds'});
 export const JOB_FREQ_BLOBS_TRANSFORMATION_FAILED_CLEANUP = readEnvironmentVariable('BLOBS_TRANSFORMATION_FAILED_CLEANUP', {defaultValue: '10 seconds'});
 
-export const JOB_FREQ_TASKS_HEALTH = readEnvironmentVariable('JOB_FREQ_TASKS_HEALTH', {defaultValue: '10 seconds'});
-export const JOB_FREQ_PRUNE_TASKS = readEnvironmentVariable('JOB_FREQ_PRUNE_TASKS', {defaultValue: '10 seconds'});
 export const JOB_FREQ_UPDATE_IMAGES = readEnvironmentVariable('JOB_FREQ_UPDATE_IMAGES', {defaultValue: '10 seconds'});
 
 export const IMPORT_OFFLINE_PERIOD = readEnvironmentVariable('IMPORT_OFFLINE_PERIOD', {defaultValue: {}, format: JSON.parse});
 
 // Default is 5 minutes
-export const STALE_TRANSFORMATION_PROGRESS_TTL = readEnvironmentVariable('STALE_TRANSFORMATION_PROGRESS_TTL', {defaultValue: '5 minutes'});
+export const STALE_TRANSFORMATION_PROGRESS_TTL = readEnvironmentVariable('STALE_TRANSFORMATION_PROGRESS_TTL', {defaultValue: '15 minutes'});
 export const STALE_PROCESSING_PROGRESS_TTL = readEnvironmentVariable('STALE_PROCESSING_PROGRESS_TTL', {defaultValue: '2 hours'});
 export const TRANSFORMATION_FAILED_TTL = readEnvironmentVariable('TRANSFORMATION_FAILED_TTL', {defaultValue: '12 hours'});
 
@@ -81,6 +79,3 @@ export const JOB_BLOBS_MISSING_RECORDS = 'BLOBS_MISSING_RECORDS';
 export const JOB_BLOBS_TRANSFORMATION_QUEUE_CLEANUP = 'BLOBS_TRANSFORMATION_QUEUE_CLEANUP';
 export const JOB_BLOBS_TRANSFORMATION_FAILED_CLEANUP = 'BLOBS_TRANSFORMATION_FAILED_CLEANUP';
 export const JOB_BLOBS_PROCESSING_QUEUE_CLEANUP = 'BLOBS_PROCESSING_QUEUE_CLEANUP';
-export const JOB_TASKS_HEALTH = 'TASKS_HEALTH';
-export const JOB_PRUNE_TASKS = 'PRUNE_TASKS';
-export const JOB_UPDATE_IMAGES = 'UPDATE_IMAGES';

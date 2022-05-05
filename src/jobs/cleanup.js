@@ -36,11 +36,9 @@ import {BLOB_STATE, createApiClient} from '@natlibfi/melinda-record-import-commo
 import {logError, processBlobs} from '../utils';
 
 export default function (agenda, {
-  terminateTasks, pruneTasks, listTasks,
   API_URL, API_USERNAME, API_PASSWORD, API_CLIENT_USER_AGENT, AMQP_URL,
   JOB_BLOBS_METADATA_CLEANUP, JOB_BLOBS_CONTENT_CLEANUP,
   JOB_BLOBS_MISSING_RECORDS, JOB_BLOBS_TRANSFORMATION_QUEUE_CLEANUP,
-  JOB_PRUNE_TASKS, JOB_TASKS_HEALTH,
   BLOBS_METADATA_TTL, BLOBS_CONTENT_TTL, STALE_TRANSFORMATION_PROGRESS_TTL,
   JOB_BLOBS_TRANSFORMATION_FAILED_CLEANUP, JOB_BLOBS_PROCESSING_QUEUE_CLEANUP,
   TRANSFORMATION_FAILED_TTL, STALE_PROCESSING_PROGRESS_TTL
@@ -54,8 +52,6 @@ export default function (agenda, {
   agenda.define(JOB_BLOBS_METADATA_CLEANUP, {}, blobsMetadataCleanup);
   agenda.define(JOB_BLOBS_CONTENT_CLEANUP, {}, blobsContentCleanup);
   agenda.define(JOB_BLOBS_MISSING_RECORDS, {}, blobsMissingRecordsCleanup);
-  agenda.define(JOB_PRUNE_TASKS, {}, pruneTasksJob);
-  agenda.define(JOB_TASKS_HEALTH, {}, tasksHealth);
   agenda.define(JOB_BLOBS_TRANSFORMATION_QUEUE_CLEANUP, {}, blobsTransformationQueueCleanup);
   agenda.define(JOB_BLOBS_TRANSFORMATION_FAILED_CLEANUP, {}, blobsTransformationFailedQueueCleanup);
   agenda.define(JOB_BLOBS_PROCESSING_QUEUE_CLEANUP, {}, blobsProcessingQueueCleanup);
@@ -219,7 +215,6 @@ export default function (agenda, {
 
       try {
         if (method === 'deleteBlob') {
-          await terminateTasks({blob: id});
           await channel.deleteQueue(id);
           await client.deleteBlob({id});
           return processCallback(rest);
@@ -231,33 +226,19 @@ export default function (agenda, {
         }
 
         if (method === 'abortBlob') {
-          await terminateTasks({blob: id});
           await client.setAborted({id});
           return processCallback(rest);
         }
 
         if (method === 'requeueImportBlob') {
-          const tasks = await listTasks({blob: id, type: 'import'});
-          if (tasks.length > 0) {
-            await terminateTasks({blob: id});
-            await client.updateState({id, state: BLOB_STATE.TRANSFORMED});
-            return processCallback(rest);
-          }
-
           await client.updateState({id, state: BLOB_STATE.TRANSFORMED});
           return processCallback(rest);
         }
 
         if (method === 'requeueTransformationBlob') {
-          const tasks = await listTasks({blob: id, type: 'transform'});
-
-          if (tasks.length === 0) {
-            await channel.deleteQueue(id);
-            logger.warn(`Blob ${id} has no transformer alive. Setting state to PENDING_TRANSFORMATION`);
-            await client.updateState({id, state: BLOB_STATE.PENDING_TRANSFORMATION});
-            return processCallback(rest);
-          }
-
+          await channel.deleteQueue(id);
+          logger.warn(`Blob ${id} has no transformer alive. Setting state to PENDING_TRANSFORMATION`);
+          await client.updateState({id, state: BLOB_STATE.PENDING_TRANSFORMATION});
           return processCallback(rest);
         }
 
@@ -280,22 +261,6 @@ export default function (agenda, {
         logError(err);
         return processCallback(rest);
       }
-    }
-  }
-
-  async function pruneTasksJob(_, done) {
-    try {
-      await pruneTasks();
-    } finally {
-      done();
-    }
-  }
-
-  async function tasksHealth(_, done) {
-    try {
-      await terminateTasks({unhealthy: true});
-    } finally {
-      done();
     }
   }
 }
