@@ -41,7 +41,8 @@ export default function (agenda, {
   JOB_BLOBS_MISSING_RECORDS, JOB_BLOBS_TRANSFORMATION_QUEUE_CLEANUP,
   BLOBS_METADATA_TTL, BLOBS_CONTENT_TTL, STALE_TRANSFORMATION_PROGRESS_TTL,
   JOB_BLOBS_TRANSFORMATION_FAILED_CLEANUP, JOB_BLOBS_PROCESSING_QUEUE_CLEANUP,
-  TRANSFORMATION_FAILED_TTL, STALE_PROCESSING_PROGRESS_TTL
+  TRANSFORMATION_FAILED_TTL, STALE_PROCESSING_PROGRESS_TTL,
+  JOB_BLOBS_TRANSFORMATION_FAILED_CONTENT_CLEANUP, TRANSFORMATION_FAILED_CONTENT_TTL
 }) {
   const logger = createLogger();
   const client = createApiClient({
@@ -54,6 +55,7 @@ export default function (agenda, {
   agenda.define(JOB_BLOBS_MISSING_RECORDS, {}, blobsMissingRecordsCleanup);
   agenda.define(JOB_BLOBS_TRANSFORMATION_QUEUE_CLEANUP, {}, blobsTransformationQueueCleanup);
   agenda.define(JOB_BLOBS_TRANSFORMATION_FAILED_CLEANUP, {}, blobsTransformationFailedQueueCleanup);
+  agenda.define(JOB_BLOBS_TRANSFORMATION_FAILED_CONTENT_CLEANUP, {}, blobsTransformationFailedQueueContentCleanup);
   agenda.define(JOB_BLOBS_PROCESSING_QUEUE_CLEANUP, {}, blobsProcessingQueueCleanup);
 
   function blobsMissingRecordsCleanup(_, done) {
@@ -99,6 +101,16 @@ export default function (agenda, {
       ttl: humanInterval(TRANSFORMATION_FAILED_TTL),
       doneCallback: done,
       messageCallback: count => `${count} blobs has failed transformation and will be removed`,
+      state: [BLOB_STATE.TRANSFORMATION_FAILED]
+    });
+  }
+
+  function blobsTransformationFailedQueueContentCleanup(_, done) {
+    return blobsCleanup({
+      method: 'deleteBlobContent',
+      ttl: humanInterval(TRANSFORMATION_FAILED_CONTENT_TTL),
+      doneCallback: done,
+      messageCallback: count => `${count} blobs has failed transformation and are waiting for content cleanup.`,
       state: [BLOB_STATE.TRANSFORMATION_FAILED]
     });
   }
