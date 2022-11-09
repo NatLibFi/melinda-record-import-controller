@@ -65,6 +65,12 @@ jobs:
         with:
           url: ${{ secrets.WEBHOOK_URL_TEST }}
           body: '{}'
+      - name: Prod webhook
+        uses: joelwmale/webhook-action@master
+        if: github.ref == 'refs/heads/master'
+        with:
+          url: ${{ secrets.WEBHOOK_URL_PROD }}
+          body: '{}'
 
   quayio:
     name: Quay.io image builder & publisher
