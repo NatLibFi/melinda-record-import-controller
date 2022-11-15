@@ -5,7 +5,7 @@
 *
 * Controller microservice of Melinda record batch import system
 *
-* Copyright (C) 2018-2019 University Of Helsinki (The National Library Of Finland)
+* Copyright (C) 2018-2021 University Of Helsinki (The National Library Of Finland)
 *
 * This file is part of melinda-record-import-controller
 *
@@ -27,6 +27,10 @@
 *
 */
 
-export {default as createCleanupJob} from './cleanup';
-export {default as createDispatchJob} from './dispatch';
-export {default as createImagesJob} from './images';
+import createCleanupJob from './cleanup';
+import createStatusCheckJob from './statusCheck';
+
+export default (agenda, params) => {
+  createCleanupJob(agenda, params);
+  createStatusCheckJob(agenda, params);
+};
