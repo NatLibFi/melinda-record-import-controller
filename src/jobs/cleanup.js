@@ -140,11 +140,11 @@ export default function (agenda, {
     } catch (err) {
       logError(err);
     } finally {
-      if (channel) { // eslint-disable-line functional/no-conditional-statement
+      if (channel) { // eslint-disable-line functional/no-conditional-statements
         await channel.close();
       }
 
-      if (connection) { // eslint-disable-line functional/no-conditional-statement
+      if (connection) { // eslint-disable-line functional/no-conditional-statements
         await connection.close();
       }
 
@@ -205,11 +205,11 @@ export default function (agenda, {
     } catch (error) {
       logError(error);
     } finally {
-      if (channel) { // eslint-disable-line functional/no-conditional-statement
+      if (channel) { // eslint-disable-line functional/no-conditional-statements
         await channel.close();
       }
 
-      if (connection) { // eslint-disable-line functional/no-conditional-statement
+      if (connection) { // eslint-disable-line functional/no-conditional-statements
         await connection.close();
       }
 
@@ -263,7 +263,7 @@ export default function (agenda, {
         }
 
         if (err instanceof ApiError && err.status === HttpStatus.NOT_FOUND) {
-          if (method === 'deleteBlob' || method === 'deleteBlobContent') { // eslint-disable-line functional/no-conditional-statement
+          if (method === 'deleteBlob' || method === 'deleteBlobContent') { // eslint-disable-line functional/no-conditional-statements
             logger.silly(`Blob ${id} or content already removed`);
           }
 

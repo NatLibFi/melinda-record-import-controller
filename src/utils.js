@@ -52,7 +52,7 @@ export function processBlobs({client, query, processCallback, messageCallback, f
         pendingProcessors.push(processCallback(filteredBlobs)); // eslint-disable-line functional/immutable-data
       })
       .on('end', () => {
-        if (messageCallback) { // eslint-disable-line functional/no-conditional-statement
+        if (messageCallback) { // eslint-disable-line functional/no-conditional-statements
           logger.debug(messageCallback(blobsTotal));
         }
 
