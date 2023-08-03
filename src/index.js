@@ -85,27 +85,27 @@ async function run() {
     agenda.every(JOB_FREQ_BLOBS_TRANSFORMATION_FAILED_CLEANUP, JOB_BLOBS_TRANSFORMATION_FAILED_CLEANUP, undefined, opts);
     agenda.every(JOB_FREQ_BLOBS_TRANSFORMATION_FAILED_CONTENT_CLEANUP, JOB_BLOBS_TRANSFORMATION_FAILED_CONTENT_CLEANUP, undefined, opts);
 
-    if (JOB_FREQ_PRUNE_TASKS === 'never') { // eslint-disable-line functional/no-conditional-statement
+    if (JOB_FREQ_PRUNE_TASKS === 'never') { // eslint-disable-line functional/no-conditional-statements
       logger.info(`Job ${JOB_PRUNE_TASKS} is disabled`);
-    } else { // eslint-disable-line functional/no-conditional-statement
+    } else { // eslint-disable-line functional/no-conditional-statements
       agenda.every(JOB_FREQ_PRUNE_TASKS, JOB_PRUNE_TASKS);
     }
 
-    if (JOB_FREQ_BLOBS_METADATA_CLEANUP === 'never') { // eslint-disable-line functional/no-conditional-statement
+    if (JOB_FREQ_BLOBS_METADATA_CLEANUP === 'never') { // eslint-disable-line functional/no-conditional-statements
       logger.info(`Job ${JOB_BLOBS_METADATA_CLEANUP} is disabled`);
-    } else { // eslint-disable-line functional/no-conditional-statement
+    } else { // eslint-disable-line functional/no-conditional-statements
       agenda.every(JOB_FREQ_BLOBS_METADATA_CLEANUP, JOB_BLOBS_METADATA_CLEANUP);
     }
 
-    if (JOB_FREQ_BLOBS_CONTENT_CLEANUP === 'never') { // eslint-disable-line functional/no-conditional-statement
+    if (JOB_FREQ_BLOBS_CONTENT_CLEANUP === 'never') { // eslint-disable-line functional/no-conditional-statements
       logger.info(`Job ${JOB_BLOBS_CONTENT_CLEANUP} is disabled`);
-    } else { // eslint-disable-line functional/no-conditional-statement
+    } else { // eslint-disable-line functional/no-conditional-statements
       agenda.every(JOB_FREQ_BLOBS_CONTENT_CLEANUP, JOB_BLOBS_CONTENT_CLEANUP);
     }
 
-    if (JOB_FREQ_BLOBS_MISSING_RECORDS === 'never') { // eslint-disable-line functional/no-conditional-statement
+    if (JOB_FREQ_BLOBS_MISSING_RECORDS === 'never') { // eslint-disable-line functional/no-conditional-statements
       logger.info(`Job ${JOB_BLOBS_MISSING_RECORDS} is disabled`);
-    } else { // eslint-disable-line functional/no-conditional-statement
+    } else { // eslint-disable-line functional/no-conditional-statements
       agenda.every(JOB_FREQ_BLOBS_MISSING_RECORDS, JOB_BLOBS_MISSING_RECORDS);
     }
 
