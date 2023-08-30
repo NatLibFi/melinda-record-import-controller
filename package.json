@@ -31,25 +31,25 @@
     "dev": "cross-env DEBUG=@natlibfi/*,-*/melinda-import-commons:api-client nodemon -w src --exec 'npm run build && node dist/index.js'"
   },
   "dependencies": {
-    "@babel/runtime": "^7.22.6",
+    "@babel/runtime": "^7.22.11",
     "@natlibfi/melinda-backend-commons": "^2.2.1",
-    "@natlibfi/melinda-commons": "^13.0.5",
+    "@natlibfi/melinda-commons": "^13.0.6",
     "@natlibfi/melinda-record-import-commons": "^10.1.7",
     "agenda": "^5.0.0",
-    "amqplib": ">=0.10.3 <1.0.0",
+    "amqplib": "^0.10.3",
     "http-status": "^1.6.2",
     "human-interval": "^2.0.1",
     "moment": "^2.29.4",
-    "mongodb": "^4.16.0"
+    "mongodb": "^4.17.1"
   },
   "devDependencies": {
-    "@babel/cli": "^7.22.9",
-    "@babel/core": "^7.22.9",
-    "@babel/eslint-parser": "^7.22.9",
-    "@babel/preset-env": "^7.22.9",
+    "@babel/cli": "^7.22.10",
+    "@babel/core": "^7.22.11",
+    "@babel/eslint-parser": "^7.22.11",
+    "@babel/preset-env": "^7.22.10",
     "@natlibfi/eslint-config-melinda-backend": "^3.0.1",
     "cross-env": "^7.0.3",
-    "eslint": "^8.46.0",
+    "eslint": "^8.48.0",
     "nodemon": "^3.0.1"
   },
   "eslintConfig": {
