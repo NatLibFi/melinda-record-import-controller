@@ -76,6 +76,7 @@ jobs:
     name: Quay.io image builder & publisher
     needs: [build-node-versions, njsscan]
     runs-on: ubuntu-latest
+    if: ${{ github.triggering_actor != 'dependabot[bot]' }}
 
     steps:
       - uses: actions/checkout@v4
