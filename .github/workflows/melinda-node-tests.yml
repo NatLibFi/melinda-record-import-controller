@@ -11,14 +11,14 @@ jobs:
 
     strategy:
       matrix:
-        node-version: [16.x, 18.x, 20.x]
+        node-version: [18.x, 19.x, 20.x]
         # See supported Node.js release schedule at https://nodejs.org/en/about/releases/
 
     steps:
     - name: Checkout the code
-      uses: actions/checkout@v3
+      uses: actions/checkout@v4
     - name: Use Node.js ${{ matrix.node-version }}
-      uses: actions/setup-node@v3
+      uses: actions/setup-node@v4
       with:
         node-version: ${{ matrix.node-version }}
         cache: 'npm'
@@ -36,7 +36,7 @@ jobs:
 
     steps:
     - name: Checkout the code
-      uses: actions/checkout@v3
+      uses: actions/checkout@v4
     - name: nodejsscan scan
       id: njsscan
       uses: ajinabraham/njsscan-action@master
@@ -48,7 +48,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - uses: mikaelvesavuori/license-compliance-action@v1.0.2
         with:
           exclude_pattern: /^@natlibfi/
@@ -76,12 +76,13 @@ jobs:
     name: Quay.io image builder & publisher
     needs: [build-node-versions, njsscan]
     runs-on: ubuntu-latest
+    if: ${{ github.triggering_actor != 'dependabot[bot]' }}
 
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - name: Docker meta
         id: meta
-        uses: docker/metadata-action@v4
+        uses: docker/metadata-action@v5
         with:
           images: quay.io/${{ github.repository }}
           tags: |
@@ -92,13 +93,13 @@ jobs:
             type=semver,pattern={{major}}.{{minor}}
             type=semver,pattern={{major}}
       - name: Login to Quay.io
-        uses: docker/login-action@v2
+        uses: docker/login-action@v3
         with:
           registry: quay.io
           username: ${{ secrets.MELINDA_QUAY_IO_USERNAME }}
           password: ${{ secrets.MELINDA_QUAY_IO_PASSWORD }}
       - name: Build and publish image to Quay.io
-        uses: docker/build-push-action@v4
+        uses: docker/build-push-action@v5
         with:
           context: .
           push: true
