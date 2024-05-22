@@ -30,7 +30,7 @@
 import createCleanupJob from './cleanup';
 import createStatusCheckJob from './statusCheck';
 
-export default (agenda, params) => {
-  createCleanupJob(agenda, params);
+export default async (agenda, params) => {
+  await createCleanupJob(agenda, params);
   createStatusCheckJob(agenda, params);
 };
