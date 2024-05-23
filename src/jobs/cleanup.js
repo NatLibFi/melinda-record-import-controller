@@ -35,8 +35,8 @@ import {Error as ApiError} from '@natlibfi/melinda-commons';
 import {BLOB_STATE, createApiClient} from '@natlibfi/melinda-record-import-commons';
 import {logError, processBlobs} from '../utils';
 
-export default function (agenda, {
-  API_URL, API_USERNAME, API_PASSWORD, API_CLIENT_USER_AGENT, AMQP_URL,
+export default async function (agenda, {
+  recordImportApiOptions, keycloakOptions, AMQP_URL,
   JOB_BLOBS_METADATA_CLEANUP, JOB_BLOBS_CONTENT_CLEANUP,
   JOB_BLOBS_MISSING_RECORDS, JOB_BLOBS_TRANSFORMATION_QUEUE_CLEANUP,
   BLOBS_METADATA_TTL, BLOBS_CONTENT_TTL, STALE_TRANSFORMATION_PROGRESS_TTL,
@@ -45,10 +45,7 @@ export default function (agenda, {
   JOB_BLOBS_TRANSFORMATION_FAILED_CONTENT_CLEANUP, TRANSFORMATION_FAILED_CONTENT_TTL
 }) {
   const logger = createLogger();
-  const client = createApiClient({
-    recordImportApiUrl: API_URL, recordImportApiUsername: API_USERNAME,
-    recordImportApiPassword: API_PASSWORD, userAgent: API_CLIENT_USER_AGENT
-  });
+  const client = await createApiClient(recordImportApiOptions, keycloakOptions);
 
   agenda.define(JOB_BLOBS_METADATA_CLEANUP, {}, blobsMetadataCleanup);
   agenda.define(JOB_BLOBS_CONTENT_CLEANUP, {}, blobsContentCleanup);

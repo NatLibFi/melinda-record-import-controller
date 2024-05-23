@@ -34,7 +34,7 @@
     "@babel/runtime": "^7.24.5",
     "@natlibfi/melinda-backend-commons": "^2.2.6",
     "@natlibfi/melinda-commons": "^13.0.13",
-    "@natlibfi/melinda-record-import-commons": "^10.2.3",
+    "@natlibfi/melinda-record-import-commons": "^11.0.0-alpha.15",
     "agenda": "^5.0.0",
     "amqplib": "^0.10.4",
     "http-status": "^1.7.4",

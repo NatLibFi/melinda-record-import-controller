@@ -28,12 +28,21 @@
 
 import moment from 'moment';
 import {readEnvironmentVariable} from '@natlibfi/melinda-backend-commons';
+import {parseBoolean} from '@natlibfi/melinda-commons';
 
 export const TZ = readEnvironmentVariable('TZ', {defaultValue: ''});
 
-export const API_URL = readEnvironmentVariable('API_URL');
-export const API_USERNAME = readEnvironmentVariable('API_USERNAME');
-export const API_PASSWORD = readEnvironmentVariable('API_PASSWORD');
+export const recordImportApiOptions = {
+  recordImportApiUrl: readEnvironmentVariable('RECORD_IMPORT_API_URL', {defaultValue: 'RECORD_IMPORT_API_URL env is not set!'}),
+  userAgent: readEnvironmentVariable('API_CLIENT_USER_AGENT', {defaultValue: '_RECORD-IMPORT-IMPORTER'}),
+  allowSelfSignedApiCert: readEnvironmentVariable('ALLOW_API_SELF_SIGNED', {defaultValue: false, format: parseBoolean})
+};
+
+export const keycloakOptions = {
+  issuerBaseURL: readEnvironmentVariable('KEYCLOAK_ISSUER_BASE_URL', {defaultValue: 'KEYCLOAK_ISSUER_BASE_URL env is not set!'}),
+  serviceClientID: readEnvironmentVariable('KEYCLOAK_SERVICE_CLIENT_ID', {defaultValue: 'KEYCLOAK_SERVICE_CLIENT_ID env is not set!'}),
+  serviceClientSecret: readEnvironmentVariable('KEYCLOAK_SERVICE_CLIENT_SECRET', {defaultValue: 'KEYCLOAK_SERVICE_CLIENT_SECRET env is not set!'})
+};
 
 export const MONGO_URI = readEnvironmentVariable('MONGO_URI', {defaultValue: 'mongodb://127.0.0.1/db'});
 export const AMQP_URL = readEnvironmentVariable('AMQP_URL', {defaultValue: 'amqp://127.0.0.1:5672'});
