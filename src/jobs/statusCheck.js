@@ -31,14 +31,11 @@ import {createLogger} from '@natlibfi/melinda-backend-commons';
 import {BLOB_STATE, createApiClient} from '@natlibfi/melinda-record-import-commons';
 import {logError, processBlobs} from '../utils';
 
-export default function (agenda, {
-  API_URL, API_USERNAME, API_PASSWORD, JOB_BLOBS_PROCESSING, API_CLIENT_USER_AGENT
+export default async function (agenda, {
+  recordImportApiOptions, keycloakOptions, JOB_BLOBS_PROCESSING
 }) {
   const logger = createLogger();
-  const client = createApiClient({
-    recordImportApiUrl: API_URL, recordImportApiUsername: API_USERNAME,
-    recordImportApiPassword: API_PASSWORD, userAgent: API_CLIENT_USER_AGENT
-  });
+  const client = await createApiClient(recordImportApiOptions, keycloakOptions);
 
   agenda.define(JOB_BLOBS_PROCESSING, {}, blobsProcessing);
 
