@@ -1,0 +1,14 @@
+{
+  "blobs.files": [
+    {
+      "filename": "foo1"
+    }
+  ],
+  "foo": [
+    {
+      "id": "foo1",
+      "state": "PROCESSED",
+      "modificationTime": "2020-01-01T00:00:01.000Z"
+    }
+  ]
+}

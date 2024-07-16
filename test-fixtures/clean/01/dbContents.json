@@ -1,0 +1,30 @@
+{
+  "blobs.files": [
+    {
+      "filename": "foo1"
+    },
+    {
+      "filename": "foo2"
+    },
+    {
+      "filename": "foo3"
+    }
+  ],
+  "foo": [
+    {
+      "id": "foo1",
+      "state": "PROCESSED",
+      "modificationTime": "2021-04-30T00:00:01.000Z"
+    },
+    {
+      "id": "foo2",
+      "state": "PROCESSED",
+      "modificationTime": "2021-05-30T00:00:01.000Z"
+    },
+    {
+      "id": "foo3",
+      "state": "PENDING_TRANSFORMATION",
+      "modificationTime": "2021-04-30T00:00:01.000Z"
+    }
+  ]
+}
