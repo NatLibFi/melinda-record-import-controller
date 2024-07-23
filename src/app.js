@@ -1,7 +1,7 @@
 import {promisify} from 'util';
 import {MongoClient} from 'mongodb';
 import {createLogger} from '@natlibfi/melinda-backend-commons';
-import {testMoment} from './config';
+import {earliestMoment, testMoment} from './config';
 
 const setTimeoutPromise = promisify(setTimeout);
 
@@ -72,7 +72,7 @@ export default async function ({mongoUri, mongoDatabaseAndCollections, pollTime}
       const query = {
         state,
         'modificationTime': {
-          '$gte': test ? new Date('2000-01-01').toISOString() : new Date('2000-01-01'),
+          '$gte': test ? new Date(earliestMoment).toISOString() : new Date(earliestMoment),
           '$lte': test ? new Date(removeBlobDate).toISOString() : new Date(removeBlobDate)
         }
       };
