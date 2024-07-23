@@ -7,6 +7,8 @@ import startApp from './app';
 
 let mongoFixtures; // eslint-disable-line functional/no-let
 
+export const testMoment = '2021-05-08';
+
 generateTests({
   callback,
   path: [__dirname, '..', 'test-fixtures', 'clean'],
@@ -47,7 +49,7 @@ async function callback({
 }) {
   const mongoUri = await mongoFixtures.getUri();
   await mongoFixtures.populate(getFixture('dbContents.json'));
-  await startApp({mongoUri, mongoDatabaseAndCollections}, '2021-05-08', true);
+  await startApp({mongoUri, mongoDatabaseAndCollections}, testMoment, true);
   const dump = await mongoFixtures.dump();
   const expectedResult = await getFixture('expectedResult.json');
   expect(dump).to.eql(expectedResult);

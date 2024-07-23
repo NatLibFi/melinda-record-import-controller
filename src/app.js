@@ -1,6 +1,7 @@
 import {promisify} from 'util';
 import {MongoClient} from 'mongodb';
 import {createLogger} from '@natlibfi/melinda-backend-commons';
+import {testMoment} from './app.spec';
 
 const setTimeoutPromise = promisify(setTimeout);
 
@@ -12,7 +13,7 @@ export default async function ({mongoUri, mongoDatabaseAndCollections, pollTime}
   await createSearchProcess(mongoDatabaseAndCollections);
 
   await client.close();
-  if (momentDate === '2021-05-08') { // test escape
+  if (momentDate === testMoment) { // test escape
     return;
   }
 
@@ -35,7 +36,7 @@ export default async function ({mongoUri, mongoDatabaseAndCollections, pollTime}
     const removeBlobDateIso = new Date(removeBlobDate).toISOString();
 
     const mongoOperator = db === '' ? client.db() : client.db(db);
-    logger.info(`PROCESSING: Collection: '${collection}' & state: '${state}'.Find blobs that have last modification older than: ${removeBlobDateIso}.`);
+    logger.info(`PROCESSING: Collection: '${collection}', state: '${state}'.Find blobs that have last modification older than: ${removeBlobDateIso}.`);
     await searchItem(mongoOperator, {
       collection,
       state,
@@ -52,7 +53,7 @@ export default async function ({mongoUri, mongoDatabaseAndCollections, pollTime}
     const blob = await mongoOperator.collection(collection).findOne(params);
 
     if (blob === null) {
-      logger.info(`DONE PROCESSING: Collection: '${collection}' & state: '${state}'`);
+      logger.info(`DONE PROCESSING: Collection: '${collection}', state: '${state}'`);
       return;
     }
 
