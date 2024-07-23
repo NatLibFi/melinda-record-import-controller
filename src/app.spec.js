@@ -4,10 +4,9 @@ import generateTests from '@natlibfi/fixugen';
 import mongoFixturesFactory from '@natlibfi/fixura-mongo';
 import {expect} from 'chai';
 import startApp from './app';
+import {testMoment} from './config';
 
 let mongoFixtures; // eslint-disable-line functional/no-let
-
-export const testMoment = '2021-05-08';
 
 generateTests({
   callback,

@@ -1,7 +1,7 @@
 import {promisify} from 'util';
 import {MongoClient} from 'mongodb';
 import {createLogger} from '@natlibfi/melinda-backend-commons';
-import {testMoment} from './app.spec';
+import {testMoment} from './config';
 
 const setTimeoutPromise = promisify(setTimeout);
 
