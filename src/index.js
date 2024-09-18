@@ -1,6 +1,6 @@
 import {handleInterrupt, createLogger} from '@natlibfi/melinda-backend-commons';
 import * as config from './config.js';
-import startApp from './app.js';
+import {startApp} from './app.js';
 import moment from 'moment';
 
 run();

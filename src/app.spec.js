@@ -1,9 +1,8 @@
-// import {expect} from 'chai';
 import {READERS} from '@natlibfi/fixura';
 import generateTests from '@natlibfi/fixugen';
 import mongoFixturesFactory from '@natlibfi/fixura-mongo';
 import {expect} from 'chai';
-import startApp from './app';
+import {startApp} from './app';
 import {testMoment} from './config';
 
 let mongoFixtures; // eslint-disable-line functional/no-let
@@ -48,7 +47,7 @@ async function callback({
 }) {
   const mongoUri = await mongoFixtures.getUri();
   await mongoFixtures.populate(getFixture('dbContents.json'));
-  await startApp({mongoUri, mongoDatabaseAndCollections}, testMoment, true);
+  await startApp({mongoUri, mongoDatabaseAndCollections}, testMoment, '2021-05-08');
   const dump = await mongoFixtures.dump();
   const expectedResult = await getFixture('expectedResult.json');
   expect(dump).to.eql(expectedResult);

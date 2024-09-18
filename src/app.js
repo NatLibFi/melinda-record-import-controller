@@ -5,9 +5,9 @@ import {earliestMoment, testMoment} from './config';
 
 const setTimeoutPromise = promisify(setTimeout);
 
-export default async function ({mongoUri, mongoDatabaseAndCollections, pollTime}, momentDate) {
+export async function startApp({mongoUri, mongoDatabaseAndCollections, pollTime}, momentDate) {
   const logger = createLogger();
-  logger.info('Starting mongo cleaning');
+  logger.info('Starting Mongo cleaning, removing old blobs');
   const client = await MongoClient.connect(mongoUri, {useNewUrlParser: true, useUnifiedTopology: true});
 
   await createSearchProcess(mongoDatabaseAndCollections);
@@ -17,7 +17,8 @@ export default async function ({mongoUri, mongoDatabaseAndCollections, pollTime}
     return;
   }
 
-  logger.info(`Done${pollTime ? `, await ${pollTime / 1000 / 60 / 60}h till next restart` : ''}`);
+  const pollTimeInHours = pollTime / 1000 / 60 / 60;
+  logger.info(pollTime ? `Done, await ${pollTimeInHours}h till next restart` : 'Done');
   await setTimeoutPromise(pollTime);
   logger.info('Restarting');
   return;
@@ -37,7 +38,7 @@ export default async function ({mongoUri, mongoDatabaseAndCollections, pollTime}
 
     const mongoOperator = db === '' ? client.db() : client.db(db);
     logger.info(`PROCESSING: Collection: '${collection}', state: '${state}'.Find blobs that have last modification older than: ${removeBlobDateIso}.`);
-    await searchItem(mongoOperator, {
+    await searchItemAndDelete(mongoOperator, {
       collection,
       state,
       removeBlobDate,
@@ -47,7 +48,7 @@ export default async function ({mongoUri, mongoDatabaseAndCollections, pollTime}
     return createSearchProcess(rest);
   }
 
-  async function searchItem(mongoOperator, {collection, state, removeBlobDate, test}) {
+  async function searchItemAndDelete(mongoOperator, {collection, state, removeBlobDate, test}) {
     // find and remove
     const params = generateParams(state, removeBlobDate, test);
     const blob = await mongoOperator.collection(collection).findOne(params);
@@ -66,7 +67,7 @@ export default async function ({mongoUri, mongoDatabaseAndCollections, pollTime}
 
     await mongoOperator.collection(collection).deleteMany({id});
 
-    return searchItem(mongoOperator, {collection, state, removeBlobDate, test});
+    return searchItemAndDelete(mongoOperator, {collection, state, removeBlobDate, test});
 
     function generateParams(state, removeBlobDate, test) {
       const query = {
