@@ -1,0 +1,13 @@
+{
+  "description": "Remove blob that has modificationTime before 2021-04-30 and file. 0 Left ",
+  "only": false,
+  "mongoDatabaseAndCollections": [
+    {
+      "db": "",
+      "collection": "foo",
+      "state": "PROCESSED",
+      "blobRemoveDaysFromNow": 3,
+      "test": true
+    }
+  ]
+}
