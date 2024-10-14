@@ -31,13 +31,8 @@ generateTests({
 async function initMongofixtures() {
   mongoFixtures = await mongoFixturesFactory({
     rootPath: [__dirname, '..', 'test-fixtures', 'clean'],
-    gridFS: {bucketName: 'blobs'},
-    useObjectId: true,
-    format: {
-      blobmetadatas: {
-        modificationTime: v => new Date(v)
-      }
-    }
+    gridFS: {bucketName: 'blobmetadatas'},
+    useObjectId: true
   });
 }
 
@@ -47,7 +42,7 @@ async function callback({
 }) {
   const mongoUri = await mongoFixtures.getUri();
   await mongoFixtures.populate(getFixture('dbContents.json'));
-  await startApp({mongoUri, mongoDatabaseAndCollections}, testMoment, '2021-05-08');
+  await startApp({mongoUri, mongoDatabaseAndCollections}, testMoment);
   const dump = await mongoFixtures.dump();
   const expectedResult = await getFixture('expectedResult.json');
   expect(dump).to.eql(expectedResult);

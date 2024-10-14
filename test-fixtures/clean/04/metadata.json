@@ -1,5 +1,5 @@
 {
-  "description": "Handles multiple collections & state combinations. 1 Left ",
+  "description": "Handles collections & state combinations. 1 Left ",
   "only": false,
   "mongoDatabaseAndCollections": [
     {
@@ -20,13 +20,6 @@
       "db": "",
       "collection": "foo",
       "state": "TRANSFORMATION_FAILED",
-      "blobRemoveDaysFromNow": 3,
-      "test": true
-    },
-    {
-      "db": "",
-      "collection": "bar",
-      "state": "PROCESSED",
       "blobRemoveDaysFromNow": 3,
       "test": true
     }

@@ -34,6 +34,7 @@
   "dependencies": {
     "@babel/runtime": "^7.25.0",
     "@natlibfi/melinda-backend-commons": "^2.3.1",
+    "@natlibfi/melinda-record-import-commons": "^11.0.0",
     "moment": "^2.30.1",
     "mongodb": "^4.17.2"
   },
@@ -44,9 +45,9 @@
     "@babel/preset-env": "^7.25.3",
     "@babel/register": "^7.24.6",
     "@natlibfi/eslint-config-melinda-backend": "^3.0.5",
-    "@natlibfi/fixugen": "^2.0.9",
-    "@natlibfi/fixura": "^3.0.8",
-    "@natlibfi/fixura-mongo": "^2.0.18",
+    "@natlibfi/fixugen": "^2.0.10",
+    "@natlibfi/fixura": "^3.0.10",
+    "@natlibfi/fixura-mongo": "^2.0.21",
     "chai": "^4.5.0",
     "cross-env": "^7.0.3",
     "eslint": "^8.57.0",

@@ -1,11 +1,10 @@
 {
-  "blobs.files": [
+  "blobmetadatas.files": [
     {
       "filename": "foo4"
     }
   ],
-  "bar": [],
-  "foo": [
+  "blobmetadatas": [
     {
       "id": "foo4",
       "state": "PROCESSED",

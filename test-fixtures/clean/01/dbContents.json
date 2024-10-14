@@ -1,5 +1,5 @@
 {
-  "blobs.files": [
+  "blobmetadatas.files": [
     {
       "filename": "foo1"
     },
@@ -10,7 +10,7 @@
       "filename": "foo3"
     }
   ],
-  "foo": [
+  "blobmetadatas": [
     {
       "id": "foo1",
       "state": "PROCESSED",
