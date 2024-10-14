@@ -76,9 +76,9 @@ export async function startApp({mongoUri, mongoDatabaseAndCollections, pollTime}
 
     const [blob] = blobsArray;
     //logger.debug(JSON.stringify(blob));
-    const {id, modificationTime} = blob;
+    const {id, profile, state, creationTime, modificationTime} = blob;
 
-    logger.debug(`Processing blob: ${id}, modified: ${modificationTime}`);
+    logger.debug(`Processing blob: ${id}, profile: ${profile}, state: ${state}, created: ${creationTime}, modified: ${modificationTime}`);
     await mongoOperator.removeBlobContent({id});
     logger.debug('Removed blob files');
     await mongoOperator.removeBlob({id});
