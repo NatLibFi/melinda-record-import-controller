@@ -48,36 +48,41 @@ export async function startApp({mongoUri, mongoDatabaseAndCollections, pollTime}
   async function searchItemAndDelete(mongoOperator, {collection, state, removeBlobDate}) {
     // find and remove
     const params = generateParams(state, removeBlobDate);
-    const [blob] = await new Promise((resolve, reject) => {
+    const blobsArray = [];
+    await new Promise((resolve, reject) => {
       const emitter = mongoOperator.queryBlob(params);
-      const blobsArray = [];
       emitter.on('blobs', blobs => blobs.forEach(blob => blobsArray.push(blob))) // eslint-disable-line functional/immutable-data
         .on('error', error => reject(error))
-        .on('end', () => resolve(blobsArray));
+        .on('end', async () => {
+          await setTimeoutPromise(50); // To make sure all blobs get in to the array
+          resolve(blobsArray);
+        });
     });
 
-    if (blob === undefined) {
+    if (blobsArray.length < 1) {
       logger.info(`DONE PROCESSING: Collection: '${collection}', state: '${state}'`);
       return;
     }
+
+    const [blob] = blobsArray;
+
     logger.debug(JSON.stringify(blob));
-
     const {id, modificationTime} = blob;
+
     logger.debug(`Processing blob: ${id}, modified: ${modificationTime}`);
-
     await mongoOperator.removeBlobContent({id});
-
     logger.debug('Removed blob files');
-
-
     await mongoOperator.removeBlob({id});
+    logger.debug('Removed blob');
 
     return searchItemAndDelete(mongoOperator, {collection, state, removeBlobDate});
 
     function generateParams(state, removeBlobDate) {
       const query = {
         state,
-        'modificationTime': `${new Date(earliestMoment).toISOString()},${new Date(removeBlobDate).toISOString()}`
+        modificationTime: `${new Date(earliestMoment).toISOString()},${new Date(removeBlobDate).toISOString()}`,
+        limit: 1,
+        getAll: false
       };
 
       // logger.debug(query.modificationTime);
