@@ -15,7 +15,7 @@ export async function startApp({mongoUri, mongoDatabaseAndCollections, pollTime}
     return;
   }
 
-  const pollTimeInHours = pollTime / 1000 / 60 / 60;
+  const pollTimeInHours = parseInt(pollTime, 10) / 1000 / 60 / 60;
   logger.info(pollTime ? `Done, await ${pollTimeInHours}h till next restart` : 'Done');
   await setTimeoutPromise(pollTime);
   logger.info('Restarting');
