@@ -34,20 +34,31 @@ export async function startApp({mongoUri, mongoDatabaseAndCollections, pollTime}
     removeBlobDate.setDate(removeBlobDate.getDate() - blobRemoveDaysFromNow);
     const removeBlobDateIso = new Date(removeBlobDate).toISOString();
     const mongoOperator = await createMongoBlobsOperator(mongoUri, db);
+    const params = generateParams(state, removeBlobDate);
 
     logger.info(`PROCESSING: Collection: '${collection}', state: '${state}'.Find blobs that have last modification older than: ${removeBlobDateIso}.`);
-    await searchItemAndDelete(mongoOperator, {
-      collection,
-      state,
-      removeBlobDate
-    });
+    await searchItemAndDelete(mongoOperator, params);
+
+    logger.info(`DONE PROCESSING: Collection: '${collection}', state: '${state}'`);
 
     return createSearchProcess(rest);
+
+    function generateParams(state, removeBlobDate) {
+      const query = {
+        state,
+        modificationTime: `${new Date(earliestMoment).toISOString()},${new Date(removeBlobDate).toISOString()}`,
+        limit: 1,
+        getAll: false
+      };
+
+      // logger.debug(query.modificationTime);
+      return query;
+
+    }
   }
 
-  async function searchItemAndDelete(mongoOperator, {collection, state, removeBlobDate}) {
+  async function searchItemAndDelete(mongoOperator, params) {
     // find and remove
-    const params = generateParams(state, removeBlobDate);
     const blobsArray = [];
     await new Promise((resolve, reject) => {
       const emitter = mongoOperator.queryBlob(params);
@@ -60,7 +71,6 @@ export async function startApp({mongoUri, mongoDatabaseAndCollections, pollTime}
     });
 
     if (blobsArray.length < 1) {
-      logger.info(`DONE PROCESSING: Collection: '${collection}', state: '${state}'`);
       return;
     }
 
@@ -75,19 +85,8 @@ export async function startApp({mongoUri, mongoDatabaseAndCollections, pollTime}
     await mongoOperator.removeBlob({id});
     logger.debug('Removed blob');
 
-    return searchItemAndDelete(mongoOperator, {collection, state, removeBlobDate});
+    return searchItemAndDelete(mongoOperator, params);
 
-    function generateParams(state, removeBlobDate) {
-      const query = {
-        state,
-        modificationTime: `${new Date(earliestMoment).toISOString()},${new Date(removeBlobDate).toISOString()}`,
-        limit: 1,
-        getAll: false
-      };
 
-      // logger.debug(query.modificationTime);
-      return query;
-
-    }
   }
 }
