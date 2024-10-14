@@ -75,8 +75,7 @@ export async function startApp({mongoUri, mongoDatabaseAndCollections, pollTime}
     }
 
     const [blob] = blobsArray;
-
-    logger.debug(JSON.stringify(blob));
+    //logger.debug(JSON.stringify(blob));
     const {id, modificationTime} = blob;
 
     logger.debug(`Processing blob: ${id}, modified: ${modificationTime}`);
@@ -86,7 +85,5 @@ export async function startApp({mongoUri, mongoDatabaseAndCollections, pollTime}
     logger.debug('Removed blob');
 
     return searchItemAndDelete(mongoOperator, params);
-
-
   }
 }
