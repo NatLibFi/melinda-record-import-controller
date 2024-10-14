@@ -1,18 +1,16 @@
 import {promisify} from 'util';
-import {MongoClient} from 'mongodb';
 import {createLogger} from '@natlibfi/melinda-backend-commons';
 import {earliestMoment, testMoment} from './config';
+import {createMongoBlobsOperator} from '@natlibfi/melinda-record-import-commons';
 
 const setTimeoutPromise = promisify(setTimeout);
 
 export async function startApp({mongoUri, mongoDatabaseAndCollections, pollTime}, momentDate) {
   const logger = createLogger();
   logger.info('Starting Mongo cleaning, removing old blobs');
-  const client = await MongoClient.connect(mongoUri, {useNewUrlParser: true, useUnifiedTopology: true});
 
   await createSearchProcess(mongoDatabaseAndCollections);
 
-  await client.close();
   if (momentDate === testMoment) { // test escape
     return;
   }
@@ -31,53 +29,58 @@ export async function startApp({mongoUri, mongoDatabaseAndCollections, pollTime}
       return;
     }
 
-    const {db, collection, state, blobRemoveDaysFromNow = false, test = false} = config;
+    const {db, collection, state, blobRemoveDaysFromNow = false} = config;
     const removeBlobDate = new Date(momentDate);
     removeBlobDate.setDate(removeBlobDate.getDate() - blobRemoveDaysFromNow);
     const removeBlobDateIso = new Date(removeBlobDate).toISOString();
+    const mongoOperator = await createMongoBlobsOperator(mongoUri, db);
 
-    const mongoOperator = db === '' ? client.db() : client.db(db);
     logger.info(`PROCESSING: Collection: '${collection}', state: '${state}'.Find blobs that have last modification older than: ${removeBlobDateIso}.`);
     await searchItemAndDelete(mongoOperator, {
       collection,
       state,
-      removeBlobDate,
-      test
+      removeBlobDate
     });
 
     return createSearchProcess(rest);
   }
 
-  async function searchItemAndDelete(mongoOperator, {collection, state, removeBlobDate, test}) {
+  async function searchItemAndDelete(mongoOperator, {collection, state, removeBlobDate}) {
     // find and remove
-    const params = generateParams(state, removeBlobDate, test);
-    const blob = await mongoOperator.collection(collection).findOne(params);
+    const params = generateParams(state, removeBlobDate);
+    const [blob] = await new Promise((resolve, reject) => {
+      const emitter = mongoOperator.queryBlob(params);
+      const blobsArray = [];
+      emitter.on('blobs', blobs => blobs.forEach(blob => blobsArray.push(blob))) // eslint-disable-line functional/immutable-data
+        .on('error', error => reject(error))
+        .on('end', () => resolve(blobsArray));
+    });
 
-    if (blob === null) {
+    if (blob === undefined) {
       logger.info(`DONE PROCESSING: Collection: '${collection}', state: '${state}'`);
       return;
     }
+    logger.debug(JSON.stringify(blob));
 
     const {id, modificationTime} = blob;
     logger.debug(`Processing blob: ${id}, modified: ${modificationTime}`);
 
-    const deleteResult = await mongoOperator.collection('blobs.files').deleteMany({filename: id});
-    logger.debug(`Removed blob file: ${deleteResult.deletedCount ? 'true' : 'false'}`);
+    await mongoOperator.removeBlobContent({id});
+
+    logger.debug('Removed blob files');
 
 
-    await mongoOperator.collection(collection).deleteMany({id});
+    await mongoOperator.removeBlob({id});
 
-    return searchItemAndDelete(mongoOperator, {collection, state, removeBlobDate, test});
+    return searchItemAndDelete(mongoOperator, {collection, state, removeBlobDate});
 
-    function generateParams(state, removeBlobDate, test) {
+    function generateParams(state, removeBlobDate) {
       const query = {
         state,
-        'modificationTime': {
-          '$gte': test ? new Date(earliestMoment).toISOString() : new Date(earliestMoment),
-          '$lte': test ? new Date(removeBlobDate).toISOString() : new Date(removeBlobDate)
-        }
+        'modificationTime': `${new Date(earliestMoment).toISOString()},${new Date(removeBlobDate).toISOString()}`
       };
 
+      // logger.debug(query.modificationTime);
       return query;
 
     }

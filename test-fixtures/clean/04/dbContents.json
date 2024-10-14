@@ -1,5 +1,5 @@
 {
-  "blobs.files": [
+  "blobmetadatas.files": [
     {
       "filename": "foo1"
     },
@@ -11,19 +11,9 @@
     },
     {
       "filename": "foo4"
-    },
-    {
-      "filename": "bar1"
     }
   ],
-  "bar": [
-    {
-      "id": "bar1",
-      "state": "PROCESSED",
-      "modificationTime": "2020-01-01T00:00:01.000Z"
-    }
-  ],
-  "foo": [
+  "blobmetadatas": [
     {
       "id": "foo1",
       "state": "PROCESSED",

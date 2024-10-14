@@ -1,5 +1,5 @@
 {
-  "blobs.files": [
+  "blobmetadatas.files": [
     {
       "filename": "foo2"
     },
@@ -7,7 +7,7 @@
       "filename": "foo3"
     }
   ],
-  "foo": [
+  "blobmetadatas": [
     {
       "id": "foo2",
       "modificationTime": "2021-05-30T00:00:01.000Z",
