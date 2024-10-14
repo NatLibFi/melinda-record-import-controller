@@ -54,7 +54,7 @@ export async function startApp({mongoUri, mongoDatabaseAndCollections, pollTime}
       emitter.on('blobs', blobs => blobs.forEach(blob => blobsArray.push(blob))) // eslint-disable-line functional/immutable-data
         .on('error', error => reject(error))
         .on('end', async () => {
-          await setTimeoutPromise(50); // To make sure all blobs get in to the array
+          await setTimeoutPromise(5); // To make sure all blobs get in to the array
           resolve(blobsArray);
         });
     });
