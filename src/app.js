@@ -109,7 +109,7 @@ export async function startApp({mongoUrl, amqpUrl, mongoDatabaseAndCollections, 
       }
 
       for (const state in BLOB_STATE) {
-        await amqpOperator.deleteQueue({blobId: blob.id, status: state}, true);
+        await amqpOperator.deleteQueue({blobId: blob.id, status: state}, false);
       }
 
       return pumpQueueStates(rest);

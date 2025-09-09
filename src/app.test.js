@@ -7,6 +7,7 @@ import {createAmqpOperator} from '@natlibfi/melinda-record-import-commons';
 
 import {startApp} from './app.js';
 import {testMoment} from './config.js';
+import {cache} from 'react';
 
 let mongoFixtures;
 
@@ -42,20 +43,28 @@ async function initMongofixtures() {
 async function callback({
   getFixture,
   mongoDatabaseAndCollections,
-  prepareQueueConfigs = []
+  prepareQueueConfigs = [],
+  expectedToFail = false,
+  expectedErrorMsg = ''
 }) {
-  const amqpOperator = await createAmqpOperator(fakeAmqpLib, 'amqp://example.com');
-  await prepareQueues(amqpOperator, prepareQueueConfigs);
-  const mongoUrl = await mongoFixtures.getUri();
-  const amqpUrl = 'amqp://example.com';
-  await mongoFixtures.populate(getFixture('dbContents.json'));
-  await startApp({mongoUrl, amqpUrl, mongoDatabaseAndCollections}, fakeAmqpLib, testMoment);
-  const dump = await mongoFixtures.dump();
-  const expectedResult = await getFixture('expectedResult.json');
-  assert.deepStrictEqual(dump, expectedResult);
+  try {
+    const amqpOperator = await createAmqpOperator(fakeAmqpLib, 'amqp://example.com');
+    await prepareQueues(amqpOperator, prepareQueueConfigs);
+    const mongoUrl = await mongoFixtures.getUri();
+    const amqpUrl = 'amqp://example.com';
+    await mongoFixtures.populate(getFixture('dbContents.json'));
+    await startApp({mongoUrl, amqpUrl, mongoDatabaseAndCollections}, fakeAmqpLib, testMoment);
+    const dump = await mongoFixtures.dump();
+    const expectedResult = await getFixture('expectedResult.json');
+    assert.deepStrictEqual(dump, expectedResult);
+    assert.equal(expectedToFail, false, 'This is ment to fail!');
+  } catch (error) {
+    assert.equal(expectedToFail, true, 'This is ment to not fail!');
 
-  await amqpOperator.closeChannel();
-  await amqpOperator.closeConnection();
+  } finally {
+    await amqpOperator.closeChannel();
+    await amqpOperator.closeConnection();
+  }
 }
 
 async function prepareQueues(amqpOperator, prepareQueueConfigs) {
