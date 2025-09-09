@@ -35,6 +35,7 @@
   "dependencies": {
     "@natlibfi/melinda-backend-commons": "^3.0.0-alpha.6",
     "@natlibfi/melinda-record-import-commons": "^13.0.0-alpha.5",
+    "amqplib": "^0.10.9",
     "moment": "^2.30.1",
     "mongodb": "^6.19.0"
   },
@@ -42,8 +43,9 @@
     "@natlibfi/fixugen": "^3.0.0-alpha.6",
     "@natlibfi/fixura": "^4.0.0-alpha.13",
     "@natlibfi/fixura-mongo": "^3.0.0-alpha.5",
-    "esbuild": "^0.25.9",
+    "@onify/fake-amqplib": "^3.2.0",
     "cross-env": "^10.0.0",
+    "esbuild": "^0.25.9",
     "eslint": "^9.35.0"
   }
 }
