@@ -1,22 +1,23 @@
+import assert from 'node:assert';
 import {READERS} from '@natlibfi/fixura';
 import generateTests from '@natlibfi/fixugen';
 import mongoFixturesFactory from '@natlibfi/fixura-mongo';
-import {expect} from 'chai';
-import {startApp} from './app';
-import {testMoment} from './config';
 
-let mongoFixtures; // eslint-disable-line functional/no-let
+import {startApp} from './app.js';
+import {testMoment} from './config.js';
+
+let mongoFixtures;
 
 generateTests({
   callback,
-  path: [__dirname, '..', 'test-fixtures', 'clean'],
+  path: [import.meta.dirname, '..', 'test-fixtures', 'clean'],
   recurse: false,
   useMetadataFile: true,
   fixura: {
     failWhenNotFound: true,
     reader: READERS.JSON
   },
-  mocha: {
+  hooks: {
     before: async () => {
       await initMongofixtures();
     },
@@ -30,7 +31,7 @@ generateTests({
 
 async function initMongofixtures() {
   mongoFixtures = await mongoFixturesFactory({
-    rootPath: [__dirname, '..', 'test-fixtures', 'clean'],
+    rootPath: [import.meta.dirname, '..', 'test-fixtures', 'clean'],
     gridFS: {bucketName: 'blobmetadatas'},
     useObjectId: true
   });
@@ -45,5 +46,5 @@ async function callback({
   await startApp({mongoUri, mongoDatabaseAndCollections}, testMoment);
   const dump = await mongoFixtures.dump();
   const expectedResult = await getFixture('expectedResult.json');
-  expect(dump).to.eql(expectedResult);
+  assert.deepStrictEqual(dump, expectedResult);
 }

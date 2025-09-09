@@ -1,6 +1,6 @@
 import {promisify} from 'util';
 import {createLogger} from '@natlibfi/melinda-backend-commons';
-import {earliestMoment, testMoment} from './config';
+import {earliestMoment, testMoment} from './config.js';
 import {createMongoBlobsOperator} from '@natlibfi/melinda-record-import-commons';
 
 const setTimeoutPromise = promisify(setTimeout);
@@ -62,7 +62,7 @@ export async function startApp({mongoUri, mongoDatabaseAndCollections, pollTime}
     const blobsArray = [];
     await new Promise((resolve, reject) => {
       const emitter = mongoOperator.queryBlob(params);
-      emitter.on('blobs', blobs => blobs.forEach(blob => blobsArray.push(blob))) // eslint-disable-line functional/immutable-data
+      emitter.on('blobs', blobs => blobs.forEach(blob => blobsArray.push(blob)))
         .on('error', error => reject(error))
         .on('end', async () => {
           await setTimeoutPromise(5); // To make sure all blobs get in to the array
