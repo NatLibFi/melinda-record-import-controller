@@ -1,14 +1,15 @@
 import {promisify} from 'util';
-import {createLogger} from '@natlibfi/melinda-backend-commons';
+import {createLogger, createWebhookOperator} from '@natlibfi/melinda-backend-commons';
 import {createMongoBlobsOperator, createAmqpOperator, BLOB_STATE} from '@natlibfi/melinda-record-import-commons';
 import {earliestMoment, testMoment} from './config.js';
 
 const setTimeoutPromise = promisify(setTimeout);
 
-export async function startApp({mongoUrl, amqpUrl, mongoDatabaseAndCollections, pollTime}, amqplib, momentDate) {
+export async function startApp({mongoUrl, amqpUrl, webhookUrl, mongoDatabaseAndCollections, pollTime}, amqplib, momentDate) {
   const logger = createLogger();
   logger.info('Starting Mongo cleaning, removing old blobs');
   const amqpOperator = await createAmqpOperator(amqplib, amqpUrl);
+  const webhookOperator = createWebhookOperator(webhookUrl);
 
   await createSearchProcess(mongoDatabaseAndCollections);
 
@@ -77,8 +78,10 @@ export async function startApp({mongoUrl, amqpUrl, mongoDatabaseAndCollections, 
         });
     });
 
-    await pumpBlobs(blobsArray);
-    await pumpQueueStates(blobsArray);
+    logger.info(`blobs to handle: ${JSON.stringify(blobsArray)}`);
+    const emptyBlobs = await pumpQueueStates(blobsArray);
+    logger.info(`blobs OK to be removed: ${JSON.stringify(emptyBlobs)}`);
+    await pumpBlobs(emptyBlobs);
     return;
 
     async function pumpBlobs(blobsArray) {
@@ -101,18 +104,33 @@ export async function startApp({mongoUrl, amqpUrl, mongoDatabaseAndCollections, 
       return pumpBlobs(rest);
     }
 
-    async function pumpQueueStates(blobsArray) {
+    async function pumpQueueStates(blobsArray, handledBlobs = []) {
       const [blob, ...rest] = blobsArray;
 
       if (blob === undefined) {
-        return;
+        return handledBlobs;
       }
+      let hasFailed = false;
 
       for (const state in BLOB_STATE) {
-        await amqpOperator.deleteQueue({blobId: blob.id, status: state}, false);
+        try {
+          await amqpOperator.deleteQueue({blobId: blob.id, status: state}, false);
+        } catch (error) {
+          logger.info(error.message);
+          if (error.message === 'Trying to remove queue that has unhandled messages!') {
+            webhookOperator.sendNotification(`Blob: ${blob.id} has messages in queue: ${state}.${blob.id}`);
+            hasFailed = true;
+            break;
+          }
+          throw error;
+        }
       }
 
-      return pumpQueueStates(rest);
+      if (hasFailed) {
+        return pumpQueueStates(rest, handledBlobs);
+      }
+
+      return pumpQueueStates(rest, [...handledBlobs, blob]);
     }
   }
 }
