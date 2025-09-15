@@ -64,10 +64,9 @@ export async function startApp({mongoUrl, amqpUrl, webhookUrl, mongoDatabaseAndC
   async function searchItemAndDelete(mongoOperator, params) {
     // find and remove
     const blobsArray = [];
-    await new Promise(async (resolve, reject) => {
-      const emitter = await mongoOperator.queryBlob(params);
+    await new Promise((resolve, reject) => {
+      const emitter = mongoOperator.queryBlob(params);
       emitter.on('blobs', blobs => {
-        logger.info(`blobs has blobs: ${blobs.length}`);
         blobs.forEach(blob => {
           if (blob.state === params.state) {
             blobsArray.push(blob);
@@ -76,16 +75,21 @@ export async function startApp({mongoUrl, amqpUrl, webhookUrl, mongoDatabaseAndC
       })
         .on('error', error => reject(error))
         .on('end', async () => {
-          await setTimeoutPromise(500); // To make sure all blobs get in to the array
+          await setTimeoutPromise(5); // To make sure all blobs get in to the array
           resolve();
         });
     });
 
     logger.info(`blobs to handle: ${blobsArray.length}`);
     const emptyBlobs = await pumpQueueStates(blobsArray);
-    logger.info(`blobs OK to be removed: ${JSON.stringify(emptyBlobs)}`);
+    logger.info(`blobs OK to be removed: ${emptyBlobs.length}`);
+
+    if (emptyBlobs.length === 0) {
+      return;
+    }
+
     await pumpBlobs(emptyBlobs);
-    return;
+    return searchItemAndDelete(mongoOperator, params);
 
     async function pumpBlobs(blobsArray) {
       const [blob, ...rest] = blobsArray;
