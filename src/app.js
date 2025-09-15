@@ -66,11 +66,14 @@ export async function startApp({mongoUrl, amqpUrl, webhookUrl, mongoDatabaseAndC
     const blobsArray = [];
     await new Promise((resolve, reject) => {
       const emitter = mongoOperator.queryBlob(params);
-      emitter.on('blobs', blobs => blobs.forEach(blob => {
-        if (blob.state === params.state) {
-          blobsArray.push(blob);
-        }
-      }))
+      emitter.on('blobs', blobs => {
+        logger.info(`blobs has blobs: ${blobs.length}`);
+        blobs.forEach(blob => {
+          if (blob.state === params.state) {
+            blobsArray.push(blob);
+          }
+        });
+      })
         .on('error', error => reject(error))
         .on('end', async () => {
           await setTimeoutPromise(500); // To make sure all blobs get in to the array
