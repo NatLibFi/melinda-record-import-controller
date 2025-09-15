@@ -94,7 +94,7 @@ export async function startApp({mongoUrl, amqpUrl, webhookUrl, mongoDatabaseAndC
       //logger.debug(JSON.stringify(blob));
       const {id, profile, state, creationTime, modificationTime} = blob;
       logger.debug(`Processing blob: ${id}, profile: ${profile}, state: ${state}, created: ${creationTime}, modified: ${modificationTime}`);
-      logger.debug(`Checkking rabbit queues for ${id}.${state}`);
+      logger.debug(`Checking rabbit queues for ${id}.${state}`);
       logger.debug(`Removing blob content ${id}`);
       await mongoOperator.removeBlobContent({id});
       logger.debug('Removed blob files');
