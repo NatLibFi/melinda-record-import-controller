@@ -1,19 +1,24 @@
 import {promisify} from 'util';
-import {createLogger} from '@natlibfi/melinda-backend-commons';
-import {earliestMoment, testMoment} from './config';
-import {createMongoBlobsOperator} from '@natlibfi/melinda-record-import-commons';
+import {createLogger, createWebhookOperator} from '@natlibfi/melinda-backend-commons';
+import {createMongoBlobsOperator, createAmqpOperator, BLOB_STATE} from '@natlibfi/melinda-record-import-commons';
+import {earliestMoment, testMoment} from './config.js';
 
 const setTimeoutPromise = promisify(setTimeout);
 
-export async function startApp({mongoUri, mongoDatabaseAndCollections, pollTime}, momentDate) {
+export async function startApp({mongoUrl, amqpUrl, webhookUrl, mongoDatabaseAndCollections, pollTime}, amqplib, momentDate) {
   const logger = createLogger();
   logger.info('Starting Mongo cleaning, removing old blobs');
+  const amqpOperator = await createAmqpOperator(amqplib, amqpUrl);
+  const webhookOperator = createWebhookOperator(webhookUrl);
 
   await createSearchProcess(mongoDatabaseAndCollections);
 
   if (momentDate === testMoment) { // test escape
     return;
   }
+
+  await amqpOperator.closeChannel();
+  await amqpOperator.closeConnection();
 
   const pollTimeInHours = parseInt(pollTime, 10) / 1000 / 60 / 60;
   logger.info(pollTime ? `Done, await ${pollTimeInHours}h till next restart` : 'Done');
@@ -33,7 +38,7 @@ export async function startApp({mongoUri, mongoDatabaseAndCollections, pollTime}
     const removeBlobDate = new Date(momentDate);
     removeBlobDate.setDate(removeBlobDate.getDate() - blobRemoveDaysFromNow);
     const removeBlobDateIso = new Date(removeBlobDate).toISOString();
-    const mongoOperator = await createMongoBlobsOperator(mongoUri, db);
+    const mongoOperator = await createMongoBlobsOperator(mongoUrl, db);
     const params = generateParams(state, removeBlobDate);
 
     logger.info(`PROCESSING: Collection: '${collection}', state: '${state}'.Find blobs that have last modification older than: ${removeBlobDateIso}.`);
@@ -53,7 +58,6 @@ export async function startApp({mongoUri, mongoDatabaseAndCollections, pollTime}
 
       // logger.debug(query.modificationTime);
       return query;
-
     }
   }
 
@@ -62,7 +66,11 @@ export async function startApp({mongoUri, mongoDatabaseAndCollections, pollTime}
     const blobsArray = [];
     await new Promise((resolve, reject) => {
       const emitter = mongoOperator.queryBlob(params);
-      emitter.on('blobs', blobs => blobs.forEach(blob => blobsArray.push(blob))) // eslint-disable-line functional/immutable-data
+      emitter.on('blobs', blobs => blobs.forEach(blob => {
+        if (blob.state === params.state) {
+          blobsArray.push(blob);
+        }
+      }))
         .on('error', error => reject(error))
         .on('end', async () => {
           await setTimeoutPromise(5); // To make sure all blobs get in to the array
@@ -70,20 +78,59 @@ export async function startApp({mongoUri, mongoDatabaseAndCollections, pollTime}
         });
     });
 
-    if (blobsArray.length < 1) {
-      return;
+    logger.info(`blobs to handle: ${JSON.stringify(blobsArray)}`);
+    const emptyBlobs = await pumpQueueStates(blobsArray);
+    logger.info(`blobs OK to be removed: ${JSON.stringify(emptyBlobs)}`);
+    await pumpBlobs(emptyBlobs);
+    return;
+
+    async function pumpBlobs(blobsArray) {
+      const [blob, ...rest] = blobsArray;
+
+      if (blob === undefined) {
+        return;
+      }
+
+      //logger.debug(JSON.stringify(blob));
+      const {id, profile, state, creationTime, modificationTime} = blob;
+      logger.debug(`Processing blob: ${id}, profile: ${profile}, state: ${state}, created: ${creationTime}, modified: ${modificationTime}`);
+      logger.debug(`Checking rabbit queues for ${id}.${state}`);
+      logger.debug(`Removing blob content ${id}`);
+      await mongoOperator.removeBlobContent({id});
+      logger.debug('Removed blob files');
+      await mongoOperator.removeBlob({id});
+      logger.debug('Removed blob');
+
+      return pumpBlobs(rest);
     }
 
-    const [blob] = blobsArray;
-    //logger.debug(JSON.stringify(blob));
-    const {id, profile, state, creationTime, modificationTime} = blob;
+    async function pumpQueueStates(blobsArray, handledBlobs = []) {
+      const [blob, ...rest] = blobsArray;
 
-    logger.debug(`Processing blob: ${id}, profile: ${profile}, state: ${state}, created: ${creationTime}, modified: ${modificationTime}`);
-    await mongoOperator.removeBlobContent({id});
-    logger.debug('Removed blob files');
-    await mongoOperator.removeBlob({id});
-    logger.debug('Removed blob');
+      if (blob === undefined) {
+        return handledBlobs;
+      }
+      let hasFailed = false;
 
-    return searchItemAndDelete(mongoOperator, params);
+      for (const state in BLOB_STATE) {
+        try {
+          await amqpOperator.deleteQueue({blobId: blob.id, status: state}, false);
+        } catch (error) {
+          logger.info(error.message);
+          if (error.message === 'Trying to remove queue that has unhandled messages!') {
+            webhookOperator.sendNotification(`Blob: ${blob.id} has messages in queue: ${state}.${blob.id}`);
+            hasFailed = true;
+            break;
+          }
+          throw error;
+        }
+      }
+
+      if (hasFailed) {
+        return pumpQueueStates(rest, handledBlobs);
+      }
+
+      return pumpQueueStates(rest, [...handledBlobs, blob]);
+    }
   }
 }
