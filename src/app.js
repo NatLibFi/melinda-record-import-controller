@@ -52,7 +52,7 @@ export async function startApp({mongoUrl, amqpUrl, webhookUrl, mongoDatabaseAndC
       const query = {
         state,
         modificationTime: `${new Date(earliestMoment).toISOString()},${new Date(removeBlobDate).toISOString()}`,
-        limit: 1,
+        limit: 100,
         getAll: false
       };
 
