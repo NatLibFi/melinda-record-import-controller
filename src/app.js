@@ -73,8 +73,8 @@ export async function startApp({mongoUrl, amqpUrl, webhookUrl, mongoDatabaseAndC
       }))
         .on('error', error => reject(error))
         .on('end', async () => {
-          await setTimeoutPromise(5); // To make sure all blobs get in to the array
-          resolve(blobsArray);
+          await setTimeoutPromise(500); // To make sure all blobs get in to the array
+          resolve();
         });
     });
 
