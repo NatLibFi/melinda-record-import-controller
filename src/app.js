@@ -64,8 +64,8 @@ export async function startApp({mongoUrl, amqpUrl, webhookUrl, mongoDatabaseAndC
   async function searchItemAndDelete(mongoOperator, params) {
     // find and remove
     const blobsArray = [];
-    await new Promise((resolve, reject) => {
-      const emitter = mongoOperator.queryBlob(params);
+    await new Promise(async (resolve, reject) => {
+      const emitter = await mongoOperator.queryBlob(params);
       emitter.on('blobs', blobs => {
         logger.info(`blobs has blobs: ${blobs.length}`);
         blobs.forEach(blob => {
