@@ -78,7 +78,7 @@ export async function startApp({mongoUrl, amqpUrl, webhookUrl, mongoDatabaseAndC
         });
     });
 
-    logger.info(`blobs to handle: ${JSON.stringify(blobsArray)}`);
+    logger.info(`blobs to handle: ${blobsArray.length}`);
     const emptyBlobs = await pumpQueueStates(blobsArray);
     logger.info(`blobs OK to be removed: ${JSON.stringify(emptyBlobs)}`);
     await pumpBlobs(emptyBlobs);
