@@ -1,0 +1,24 @@
+{
+  "description": "Remove blob that has some messages in queues, no blobs removed",
+  "only": false,
+  "mongoDatabaseAndCollections": [
+    {
+      "db": "",
+      "collection": "foo",
+      "state": "PROCESSED",
+      "blobRemoveDaysFromNow": 3,
+      "test": true
+    }
+  ],
+  "prepareQueueConfigs": [
+    {
+      "queue": {
+        "blobId": "foo1",
+        "status": "TRANSFORMED"
+      },
+      "recordsToQueue": 2
+    }
+  ],
+  "expectedToFail": false,
+  "expectedErrorMsg": ""
+}
