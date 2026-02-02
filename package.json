@@ -33,19 +33,19 @@
     "dev:debug": "cross-env LOG_LEVEL=debug DEBUG=@natlibfi/* NODE_ENV=test npm run watch:test"
   },
   "dependencies": {
-    "@natlibfi/melinda-backend-commons": "^3.0.0-alpha.6",
-    "@natlibfi/melinda-record-import-commons": "^13.0.0-alpha.5",
+    "@natlibfi/melinda-backend-commons": "^3.0.4",
+    "@natlibfi/melinda-record-import-commons": "^13.0.2",
     "amqplib": "^0.10.9",
     "moment": "^2.30.1",
-    "mongodb": "^6.19.0"
+    "mongodb": "^6.21.0"
   },
   "devDependencies": {
-    "@natlibfi/fixugen": "^3.0.0-alpha.6",
-    "@natlibfi/fixura": "^4.0.0-alpha.13",
-    "@natlibfi/fixura-mongo": "^3.0.0-alpha.5",
-    "@onify/fake-amqplib": "^3.2.0",
-    "cross-env": "^10.0.0",
-    "esbuild": "^0.25.9",
-    "eslint": "^9.35.0"
+    "@natlibfi/fixugen": "^3.0.0",
+    "@natlibfi/fixura": "^4.0.0",
+    "@natlibfi/fixura-mongo": "^3.0.2",
+    "@onify/fake-amqplib": "^3.4.0",
+    "cross-env": "^10.1.0",
+    "esbuild": "^0.25.12",
+    "eslint": "^9.39.2"
   }
 }
