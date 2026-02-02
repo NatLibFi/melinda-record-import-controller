@@ -2,6 +2,7 @@ import {handleInterrupt, createLogger} from '@natlibfi/melinda-backend-commons';
 import * as config from './config.js';
 import {startApp} from './app.js';
 import moment from 'moment';
+import amqplib from 'amqplib';
 
 run();
 
@@ -9,7 +10,7 @@ async function run() {
   const logger = createLogger();
   registerInterruptionHandlers();
   const date = moment().format();
-  await startApp(config, date);
+  await startApp(config, amqplib, date);
   return;
 
   function registerInterruptionHandlers() {

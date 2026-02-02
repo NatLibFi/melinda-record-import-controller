@@ -1,6 +1,9 @@
 import {readEnvironmentVariable} from '@natlibfi/melinda-backend-commons';
 
-export const mongoUri = readEnvironmentVariable('MONGO_URI', {defaultValue: 'mongodb://127.0.0.1:27017/db'});
+export const mongoUrl = readEnvironmentVariable('MONGO_URI', {defaultValue: 'mongodb://127.0.0.1:27017/db'});
+export const amqpUrl = readEnvironmentVariable('AMQP_URL', {defaultValue: 'amqp://127.0.0.1:5672/'});
+export const webhookUrl = readEnvironmentVariable('WEBHOOK_URL', {defaultValue: 'test'});
+
 export const mongoDatabaseAndCollections = readEnvironmentVariable('MONGO_DATABASE_AND_COLLECTIONS', {defaultValue: [], format: v => JSON.parse(v)});
 export const pollTime = readEnvironmentVariable('POLL_TIME', {defaultValue: 21600000}); // 6h in ms (1000 ms / 60 sec / 60 min)
 
