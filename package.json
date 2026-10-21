@@ -33,7 +33,7 @@
     "dev:debug": "cross-env LOG_LEVEL=debug DEBUG=@natlibfi/* NODE_ENV=test npm run watch:test"
   },
   "dependencies": {
-    "@natlibfi/melinda-backend-commons": "^3.0.6",
+    "@natlibfi/melinda-commons": "^16.0.0",
     "@natlibfi/melinda-record-import-commons": "^13.0.6",
     "amqplib": "^0.10.9",
     "moment": "^2.31.0",

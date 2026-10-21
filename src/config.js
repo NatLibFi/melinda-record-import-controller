@@ -1,4 +1,4 @@
-import {readEnvironmentVariable} from '@natlibfi/melinda-backend-commons';
+import {readEnvironmentVariable} from '@natlibfi/melinda-commons';
 
 export const mongoUrl = readEnvironmentVariable('MONGO_URI', {defaultValue: 'mongodb://127.0.0.1:27017/db'});
 export const amqpUrl = readEnvironmentVariable('AMQP_URL', {defaultValue: 'amqp://127.0.0.1:5672/'});

@@ -1,5 +1,5 @@
 import {promisify} from 'util';
-import {createLogger, createWebhookOperator} from '@natlibfi/melinda-backend-commons';
+import {createLogger, createWebhookOperator} from '@natlibfi/melinda-commons';
 import {createMongoBlobsOperator, createAmqpOperator, BLOB_STATE} from '@natlibfi/melinda-record-import-commons';
 import {earliestMoment, testMoment} from './config.js';
 

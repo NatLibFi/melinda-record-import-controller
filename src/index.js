@@ -1,4 +1,4 @@
-import {handleInterrupt, createLogger} from '@natlibfi/melinda-backend-commons';
+import {handleInterrupt, createLogger} from '@natlibfi/melinda-commons';
 import * as config from './config.js';
 import {startApp} from './app.js';
 import moment from 'moment';
