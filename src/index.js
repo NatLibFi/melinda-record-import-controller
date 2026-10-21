@@ -1,4 +1,4 @@
-import {handleInterrupt, createLogger} from '@natlibfi/melinda-backend-commons';
+import {handleInterrupt, createLogger} from '@natlibfi/melinda-commons';
 import * as config from './config.js';
 import {startApp} from './app.js';
 import moment from 'moment';
@@ -32,7 +32,7 @@ async function run() {
   function handleTermination({code = 0, message = false}) {
     logMessage(message);
 
-    process.exit(code); // eslint-disable-line no-process-exit
+    process.exit(code);
 
     function logMessage(message) {
       if (message) {

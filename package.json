@@ -18,7 +18,7 @@
   "main": "src/index.js",
   "type": "module",
   "engines": {
-    "node": ">=22"
+    "node": ">=24"
   },
   "bin": "./dist/index.js",
   "scripts": {
@@ -33,19 +33,19 @@
     "dev:debug": "cross-env LOG_LEVEL=debug DEBUG=@natlibfi/* NODE_ENV=test npm run watch:test"
   },
   "dependencies": {
-    "@natlibfi/melinda-backend-commons": "^3.0.4",
-    "@natlibfi/melinda-record-import-commons": "^13.0.2",
+    "@natlibfi/melinda-commons": "^16.0.0",
+    "@natlibfi/melinda-record-import-commons": "^13.0.6",
     "amqplib": "^0.10.9",
-    "moment": "^2.30.1",
-    "mongodb": "^6.21.0"
+    "moment": "^2.31.0",
+    "mongodb": "^7.7.0"
   },
   "devDependencies": {
-    "@natlibfi/fixugen": "^3.0.0",
-    "@natlibfi/fixura": "^4.0.0",
-    "@natlibfi/fixura-mongo": "^3.0.2",
-    "@onify/fake-amqplib": "^3.4.0",
+    "@natlibfi/fixugen": "^3.0.1",
+    "@natlibfi/fixura": "^4.0.1",
+    "@natlibfi/fixura-mongo": "^3.0.3",
+    "@onify/fake-amqplib": "^3.7.0",
     "cross-env": "^10.1.0",
-    "esbuild": "^0.27.2",
-    "eslint": "^9.39.2"
+    "esbuild": "^0.28.2",
+    "eslint": "^10.9.1"
   }
 }
