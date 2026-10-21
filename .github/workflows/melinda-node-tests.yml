@@ -52,6 +52,7 @@ jobs:
       - uses: actions/checkout@v7
       - uses: mikaelvesavuori/license-compliance-action@v1
         with:
+          allow_licenses: MIT;ISC;0BSD;BSD-2-Clause;BSD-3-Clause;Apache-2.0;MIT-0;BlueOak-1.0.0
           exclude_pattern: /^@natlibfi/
 
   openshift-webhook:
